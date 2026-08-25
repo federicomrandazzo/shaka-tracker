@@ -135,8 +135,18 @@ nav button .b{
 .t.done .chk i{background:var(--accent);border-color:var(--accent);color:#fff}
 .t.late .chk i{border-color:rgba(192,57,43,.45)}
 .t .body{flex:1;min-width:0}
-.t .ttl{font-size:14px;line-height:1.4;word-break:break-word}
+.t .ttl{font-size:14px;font-weight:500;line-height:1.4;word-break:break-word}
 .t.done .ttl{color:var(--muted);text-decoration:line-through}
+/* la descripción se recorta a 2 líneas; completa se ve al abrir la tarea */
+.t .desc{
+  margin-top:4px;font-size:12.5px;line-height:1.45;color:var(--muted);word-break:break-word;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.t .desc.full{-webkit-line-clamp:unset;display:block}
+.t .more{
+  margin-top:3px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);
+  padding:4px 0;min-height:26px;
+}
 .meta{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
 .tag{
   display:inline-block;border-radius:2px;padding:2px 7px;
@@ -349,8 +359,10 @@ main{padding-bottom:104px}
 <!-- MODAL TAREA -->
 <div class="ov" id="ovTask"><div class="modal">
   <div class="mh"><h3 id="taskTitle">Nueva tarea</h3><button data-close="ovTask">Cerrar ✕</button></div>
-  <div class="f"><label>Qué hay que hacer</label>
-    <textarea id="fTitle" placeholder="Escribí la tarea..." rows="2" autocapitalize="sentences"></textarea></div>
+  <div class="f"><label>Título</label>
+    <input type="text" id="fTitle" placeholder="Ej: Diseñar la remera del drop" autocapitalize="sentences"></div>
+  <div class="f"><label>Descripción (opcional)</label>
+    <textarea id="fDesc" placeholder="Detalle de lo que hay que hacer..." rows="3" autocapitalize="sentences"></textarea></div>
   <div class="f"><label>Quién la hace</label><div class="chips" id="fWho"></div></div>
   <div class="f"><label>Qué día la hago</label>
     <input type="date" id="fDo">
@@ -416,7 +428,7 @@ var DEF_STAGES=[
   {name:'LANZAMIENTO',before:0,dur:1,who:''}
 ];
 var S={team:DEF_TEAM.slice(),tasks:[],me:null,view:'hoy',
-       fWho:'',fTask:null,stages:null,collapsed:{},openP:{},
+       fWho:'',fTask:null,stages:null,collapsed:{},openP:{},expand:{},
        fltDrop:'',fltEst:'pend'};
 
 function save(){try{localStorage.setItem(KEY,JSON.stringify({team:S.team,tasks:S.tasks,me:S.me}));}catch(e){}}
@@ -474,7 +486,10 @@ function htmlTarea(t,conQuien){
   if(t.pushed>=2&&!t.done)m+='<span class="tag push">Corrida '+t.pushed+' veces</span>';
   return '<div class="t'+(t.done?' done':'')+(esVencida(t)?' late':'')+'" data-id="'+t.id+'">'+
     '<button class="chk" data-act="toggle" aria-label="Marcar"><i>✓</i></button>'+
-    '<div class="body"><div class="ttl" data-act="edit">'+esc(t.title)+'</div><div class="meta">'+m+'</div></div>'+
+    '<div class="body"><div class="ttl" data-act="edit">'+esc(t.title)+'</div>'+
+      (t.desc?'<div class="desc'+(S.expand[t.id]?' full':'')+'" data-act="expand">'+esc(t.desc)+'</div>'+
+              (t.desc.length>90?'<button class="more" data-act="expand">'+(S.expand[t.id]?'Ver menos':'Ver más')+'</button>':''):'')+
+      '<div class="meta">'+m+'</div></div>'+
     '<div class="acts">'+(t.done?'':
       '<button data-act="push">→ Mañana</button><button data-act="hoy">A hoy</button>')+'</div></div>';
 }
@@ -636,6 +651,7 @@ function modalTarea(t){
   S.fTask=t?t.id:null;
   document.getElementById('taskTitle').textContent=t?'Editar tarea':'Nueva tarea';
   document.getElementById('fTitle').value=t?t.title:'';
+  document.getElementById('fDesc').value=t?(t.desc||''):'';
   document.getElementById('fDo').value=t?(t.do||TODAY()):TODAY();
   document.getElementById('fDue').value=t?(t.due||''):'';
   document.getElementById('fDrop').value=t?(t.drop||''):'';
@@ -646,13 +662,14 @@ function modalTarea(t){
 function guardarTarea(){
   var tx=document.getElementById('fTitle').value.trim();
   if(!tx){document.getElementById('fTitle').focus();return;}
+  var ds=document.getElementById('fDesc').value.trim();
   var doD=document.getElementById('fDo').value||TODAY();
   var due=document.getElementById('fDue').value||'';
   var drop=document.getElementById('fDrop').value.trim().toUpperCase();
   if(S.fTask){
-    var t=find(S.fTask);t.title=tx;t.who=S.fWho;t.do=doD;t.due=due;t.drop=drop;
+    var t=find(S.fTask);t.title=tx;t.desc=ds;t.who=S.fWho;t.do=doD;t.due=due;t.drop=drop;
   }else{
-    S.tasks.push({id:uid(),title:tx,who:S.fWho,do:doD,due:due,drop:drop,done:false,doneAt:null,pushed:0,creada:TODAY()});
+    S.tasks.push({id:uid(),title:tx,desc:ds,who:S.fWho,do:doD,due:due,drop:drop,done:false,doneAt:null,pushed:0,creada:TODAY()});
     S.fltDrop='';S.fltEst='pend';S.collapsed[doD]=false;
     /* si se la asignaste a otro, mostrala en Equipo para que no parezca que se perdió */
     if(S.fWho!==S.me){S.view='equipo';S.openP[S.fWho]=true;setNav('equipo');}
@@ -695,7 +712,7 @@ function guardarDrop(){
   S.stages.forEach(function(s){
     var due=addD(f,-Math.abs(+s.before||0)),ini=addD(due,-Math.abs(+s.dur||1));
     if((s.who||'')===S.me)propias++;
-    S.tasks.push({id:uid(),title:s.name,who:s.who||'',do:ini,due:due,drop:nm,done:false,doneAt:null,pushed:0,creada:TODAY()});
+    S.tasks.push({id:uid(),title:s.name,desc:'',who:s.who||'',do:ini,due:due,drop:nm,done:false,doneAt:null,pushed:0,creada:TODAY()});
   });
   save();cerrar('ovDrop');
   /* las del drop suelen ser de otros: mostrar Equipo salvo que todas sean tuyas */
@@ -716,20 +733,20 @@ function pintarEquipo(){
 function seed(){
   var t=TODAY();
   S.tasks=[
-    {id:uid(),title:'Cerrar la selección de telas para el drop de primavera',who:'AXEL',do:addD(t,-3),due:addD(t,-1),drop:'DROP PILCHA',done:false,pushed:3},
-    {id:uid(),title:'Pedir presupuesto de estampa a los dos talleres',who:'MATE',do:t,due:addD(t,2),drop:'DROP PILCHA',done:false,pushed:0},
-    {id:uid(),title:'Armar el brief de fotos para la producción',who:'MILI',do:t,due:addD(t,5),drop:'DROP PILCHA',done:false,pushed:0},
-    {id:uid(),title:'Responder los mayoristas pendientes de la semana',who:'MARTU',do:t,due:t,drop:'',done:false,pushed:0},
-    {id:uid(),title:'Actualizar stock de la tienda después del sale',who:'TOMI',do:t,due:addD(t,1),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Pasarle a Fede el detalle de vencimientos de septiembre',who:'AXEL',do:t,due:addD(t,3),drop:'',done:false,pushed:1},
-    {id:uid(),title:'Revisar el reporte de ventas de la semana',who:'FEDE',do:t,due:addD(t,1),drop:'',done:true,pushed:0},
-    {id:uid(),title:'Mandarle a Axel el resumen de caja de agosto',who:'FEDE',do:t,due:addD(t,2),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Sacar los talles quebrados del cupón de descuento',who:'TOMI',do:addD(t,1),due:addD(t,4),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Definir el casting para la campaña',who:'MILI',do:addD(t,2),due:addD(t,6),drop:'DROP PILCHA',done:false,pushed:0},
-    {id:uid(),title:'Reunión de equipo: repasar el calendario de drops',who:'AXEL',do:addD(t,3),due:addD(t,3),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Cargar las fichas técnicas nuevas al sistema',who:'MATE',do:addD(t,5),due:addD(t,9),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Cerrar la lista de precios mayorista de septiembre',who:'FEDE',do:addD(t,6),due:addD(t,10),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Pedir las muestras de cierres al proveedor',who:'MARTU',do:addD(t,-2),due:addD(t,-1),drop:'DROP PILCHA',done:false,pushed:2}
+    {id:uid(),title:'Cerrar la selección de telas',desc:'Definir con el proveedor las tres telas del drop. Faltan los precios por metro del frisa y confirmar si llegan los colores que pedimos.',who:'AXEL',do:addD(t,-3),due:addD(t,-1),drop:'DROP PILCHA',done:false,pushed:3},
+    {id:uid(),title:'Pedir presupuesto de estampa',desc:'A los dos talleres, por las 400 unidades. Pedir precio con y sin base blanca.',who:'MATE',do:t,due:addD(t,2),drop:'DROP PILCHA',done:false,pushed:0},
+    {id:uid(),title:'Armar el brief de fotos',desc:'Referencias de locación, looks y cantidad de fotos por producto para pasarle al fotógrafo.',who:'MILI',do:t,due:addD(t,5),drop:'DROP PILCHA',done:false,pushed:0},
+    {id:uid(),title:'Responder los mayoristas pendientes',desc:'Quedaron cuatro consultas sin contestar de la semana pasada.',who:'MARTU',do:t,due:t,drop:'',done:false,pushed:0},
+    {id:uid(),title:'Actualizar stock de la tienda',desc:'Después del sale quedaron diferencias en talles. Revisar contra el depósito antes de publicar.',who:'TOMI',do:t,due:addD(t,1),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Pasarle a Fede los vencimientos de septiembre',desc:'',who:'AXEL',do:t,due:addD(t,3),drop:'',done:false,pushed:1},
+    {id:uid(),title:'Revisar el reporte de ventas de la semana',desc:'',who:'FEDE',do:t,due:addD(t,1),drop:'',done:true,pushed:0},
+    {id:uid(),title:'Mandarle a Axel el resumen de caja de agosto',desc:'',who:'FEDE',do:t,due:addD(t,2),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Sacar los talles quebrados del cupón',desc:'Los que se agotan solos no necesitan descuento. Dejar el cupón para el stock lento.',who:'TOMI',do:addD(t,1),due:addD(t,4),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Definir el casting para la campaña',desc:'Dos perfiles, ver disponibilidad para la semana del shooting.',who:'MILI',do:addD(t,2),due:addD(t,6),drop:'DROP PILCHA',done:false,pushed:0},
+    {id:uid(),title:'Reunión de equipo',desc:'Repasar el calendario de drops y repartir lo que quedó suelto.',who:'AXEL',do:addD(t,3),due:addD(t,3),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Cargar las fichas técnicas nuevas',desc:'',who:'MATE',do:addD(t,5),due:addD(t,9),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Cerrar la lista de precios mayorista',desc:'Actualizar septiembre con el ajuste que definimos.',who:'FEDE',do:addD(t,6),due:addD(t,10),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Pedir las muestras de cierres',desc:'Al proveedor nuevo, para comparar con los que veníamos usando.',who:'MARTU',do:addD(t,-2),due:addD(t,-1),drop:'DROP PILCHA',done:false,pushed:2}
   ].map(function(x){x.doneAt=x.done?t:null;x.creada=t;return x;});
   save();
 }
@@ -789,6 +806,7 @@ document.addEventListener('click',function(e){
   var row=e.target.closest('[data-id]');
   if(row){
     var act=e.target.closest('[data-act]'),a=act?act.dataset.act:null;
+    if(a==='expand'){S.expand[row.dataset.id]=!S.expand[row.dataset.id];render();return;}
     if(a==='toggle')return toggle(row.dataset.id);
     if(a==='push')return push(row.dataset.id);
     if(a==='hoy')return traer(row.dataset.id);
