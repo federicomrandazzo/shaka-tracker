@@ -551,7 +551,7 @@ var DEF_STAGES=[
   {name:'LANZAMIENTO',before:0,dur:1,who:''}
 ];
 var S={team:DEF_TEAM.slice(),tasks:[],me:null,view:'hoy',tip:true,
-       fWho:'',fTask:null,stages:null,collapsed:{},openP:{},
+       fWhos:[],fTask:null,stages:null,collapsed:{},openP:{},sheetResp:false,
        fltDrop:'',fltEst:'pend',actId:null,detId:null,eqOpen:false};
 
 function save(){try{localStorage.setItem(KEY,JSON.stringify({team:S.team,tasks:S.tasks,me:S.me,tip:S.tip}));}catch(e){}}
@@ -589,8 +589,22 @@ function nombreDia(s){
 function uid(){return 't'+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);}
 function esVencida(t){return !t.done&&t.due&&diff(t.due,TODAY())<0;}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-function mias(){return S.tasks.filter(function(t){return t.who===S.me;});}
-function deOtro(n){return S.tasks.filter(function(t){return n===''?(!t.who||S.team.indexOf(t.who)<0):t.who===n;});}
+/* una tarea puede tener varios responsables. Guardamos un array en t.who,
+   pero las tareas viejas traen un string: whos() normaliza siempre a lista. */
+function whos(t){
+  if(!t||!t.who)return[];
+  return (typeof t.who==='string')?[t.who]:t.who.slice();
+}
+function esDe(t,n){return whos(t).indexOf(n)>=0;}
+function mias(){return S.tasks.filter(function(t){return esDe(t,S.me);});}
+function deOtro(n){
+  return S.tasks.filter(function(t){
+    var w=whos(t);
+    if(n==='')return !w.length||!w.some(function(x){return S.team.indexOf(x)>=0;});
+    return w.indexOf(n)>=0;
+  });
+}
+function nombresWho(t){var w=whos(t);return w.length?w.join(', '):'sin asignar';}
 function drops(){var o={},r=[];S.tasks.forEach(function(t){if(t.drop&&!o[t.drop]){o[t.drop]=1;r.push(t.drop);}});return r.sort();}
 function ini2(n){return String(n||'?').slice(0,2);}
 function find(id){for(var i=0;i<S.tasks.length;i++)if(S.tasks[i].id===id)return S.tasks[i];return null;}
@@ -607,6 +621,8 @@ function tagDeadline(t){
 }
 function htmlTarea(t){
   var m=tagDeadline(t);
+  var otros=whos(t).filter(function(n){return n!==S.me;});
+  if(otros.length)m+='<span class="tag who">Con '+esc(otros.join(', '))+'</span>';
   if(t.drop)m+='<span class="tag drop">'+esc(t.drop)+'</span>';
   if(t.pushed>=2&&!t.done)m+='<span class="tag push">Corrida '+t.pushed+' veces</span>';
   return '<div class="t'+(t.done?' done':'')+(esVencida(t)?' late':'')+'" data-id="'+t.id+'">'+
@@ -739,7 +755,7 @@ function pintarDrawer(){
   }).join('');
   var t=TODAY(),gente=S.team.slice(),huerf=deOtro('');
   if(huerf.length)gente.push('');
-  var vencEq=S.tasks.filter(function(x){return esVencida(x)&&x.who!==S.me;}).length;
+  var vencEq=S.tasks.filter(function(x){return esVencida(x)&&!esDe(x,S.me);}).length;
   document.getElementById('dEqCnt').textContent=vencEq?vencEq+(vencEq>1?' vencidas':' vencida'):(S.team.length+' personas');
   document.getElementById('dEqChev').className='chev'+(S.eqOpen?' open':'');
   document.getElementById('dTeam').className='eqbox'+(S.eqOpen?' on':'');
@@ -787,11 +803,12 @@ function borrar(id){
   if(!confirm('¿Eliminar "'+t.title+'"?'))return;
   S.tasks=S.tasks.filter(function(x){return x.id!==id;});save();render();
 }
-function reasignar(id,quien){
+function toggleResp(id,quien){
   var t=find(id);if(!t)return;
-  t.who=quien;save();
-  if(quien!==S.me){S.eqOpen=true;S.openP[quien]=true;abrirDrawer();}
-  render();
+  var w=whos(t),i=w.indexOf(quien);
+  if(i>=0)w.splice(i,1); else w.push(quien);
+  t.who=w;save();
+  document.getElementById('sheetOpts').innerHTML=opcionesResp(t); /* la hoja queda abierta */
 }
 
 /* ===================== detalle ===================== */
@@ -803,7 +820,9 @@ function verTarea(id){
   dd.textContent=t.desc||'';
   dd.className='ddesc'+(t.desc?'':' vacia');
   if(!t.desc)dd.textContent='Sin descripción.';
-  var m='<span class="tag who">'+esc(t.who||'sin asignar')+'</span>';
+  var m=whos(t).length
+        ? whos(t).map(function(n){return'<span class="tag who">'+esc(n)+'</span>';}).join('')
+        : '<span class="tag">Sin asignar</span>';
   m+='<span class="tag">La hago el '+fmt(t.do)+'</span>';
   m+=t.due?tagDeadline(t):'<span class="tag">Sin deadline</span>';
   if(t.drop)m+='<span class="tag drop">'+esc(t.drop)+'</span>';
@@ -822,6 +841,8 @@ function abrirSheet(titulo,html,id){
 }
 function cerrarSheet(){
   document.getElementById('sheet').classList.remove('on');
+  document.querySelector('#sheet .cancel').textContent='Cancelar';
+  if(S.sheetResp){S.sheetResp=false;cerrarFilas(null);render();}
   if(!document.getElementById('drawer').classList.contains('on')&&
      !document.querySelector('.ov.on')) document.body.style.overflow='';
 }
@@ -835,12 +856,18 @@ function sheetPasar(id){
      '<input type="date" id="mvDate" value="'+t.do+'"></div>';
   abrirSheet('Pasar la tarea',h,id);
 }
+function opcionesResp(t){
+  return S.team.map(function(m){
+    var si=esDe(t,m);
+    return'<button class="op'+(si?' act':'')+'" data-rs="'+esc(m)+'"><span class="ic">'+(si?'☑':'☐')+'</span>'+
+      '<span>'+esc(m)+(m===S.me?'<small>Vos</small>':'')+'</span></button>';
+  }).join('');
+}
 function sheetResp(id){
   var t=find(id);if(!t)return;
-  abrirSheet('Cambiar responsable',S.team.map(function(m){
-    return'<button class="op'+(m===t.who?' act':'')+'" data-rs="'+esc(m)+'"><span class="ic">'+(m===t.who?'✓':'·')+'</span>'+
-      '<span>'+esc(m)+(m===S.me?'<small>Vos</small>':'')+'</span></button>';
-  }).join(''),id);
+  S.sheetResp=true;
+  abrirSheet('Responsables',opcionesResp(t),id);
+  document.querySelector('#sheet .cancel').textContent='Listo';
 }
 
 /* ===================== arrastrar para priorizar =====================
@@ -1002,9 +1029,10 @@ function cerrar(id){
   if(!document.getElementById('drawer').classList.contains('on'))document.body.style.overflow='';
 }
 function chipsWho(sel){
-  S.fWho=sel;
+  if(sel!==undefined)S.fWhos=(sel||[]).slice();
   document.getElementById('fWho').innerHTML=S.team.map(function(m){
-    return'<button class="chip'+(m===sel?' on':'')+'" data-who="'+esc(m)+'">'+esc(m)+'</button>';
+    var si=S.fWhos.indexOf(m)>=0;
+    return'<button class="chip'+(si?' on':'')+'" data-who="'+esc(m)+'">'+(si?'✓ ':'')+esc(m)+'</button>';
   }).join('');
 }
 function modalTarea(t){
@@ -1015,7 +1043,7 @@ function modalTarea(t){
   document.getElementById('fDo').value=t?(t.do||TODAY()):TODAY();
   document.getElementById('fDue').value=t?(t.due||''):'';
   document.getElementById('fDrop').value=t?(t.drop||''):'';
-  chipsWho(t?(t.who||S.me):S.me);
+  chipsWho(t?(whos(t).length?whos(t):[S.me]):[S.me]);
   document.getElementById('delTask').style.display=t?'block':'none';
   abrir('ovTask');
 }
@@ -1027,11 +1055,15 @@ function guardarTarea(){
   var due=document.getElementById('fDue').value||'';
   var drop=document.getElementById('fDrop').value.trim().toUpperCase();
   if(S.fTask){
-    var t=find(S.fTask);t.title=tx;t.desc=ds;t.who=S.fWho;t.do=doD;t.due=due;t.drop=drop;
+    var t=find(S.fTask);t.title=tx;t.desc=ds;t.who=S.fWhos.slice();t.do=doD;t.due=due;t.drop=drop;
   }else{
-    S.tasks.push({id:uid(),title:tx,desc:ds,who:S.fWho,do:doD,due:due,drop:drop,done:false,doneAt:null,pushed:0,creada:TODAY()});
+    S.tasks.push({id:uid(),title:tx,desc:ds,who:S.fWhos.slice(),do:doD,due:due,drop:drop,done:false,doneAt:null,pushed:0,creada:TODAY()});
     S.fltDrop='';S.fltEst='pend';S.collapsed[doD]=false;
-    if(S.fWho!==S.me){S.openP[S.fWho]=true;cerrar('ovTask');abrirDrawer();render();return;}
+    /* si no te tocó a vos, mostrá dónde cayó */
+    if(S.fWhos.indexOf(S.me)<0&&S.fWhos.length){
+      S.eqOpen=true;S.fWhos.forEach(function(n){S.openP[n]=true;});
+      save();cerrar('ovTask');abrirDrawer();render();return;
+    }
   }
   save();cerrar('ovTask');render();
 }
@@ -1070,8 +1102,8 @@ function guardarDrop(){
   var propias=0;
   S.stages.forEach(function(s){
     var due=addD(f,-Math.abs(+s.before||0)),ini=addD(due,-Math.abs(+s.dur||1));
-    if((s.who||'')===S.me)propias++;
-    S.tasks.push({id:uid(),title:s.name,desc:'',who:s.who||'',do:ini,due:due,drop:nm,done:false,doneAt:null,pushed:0,creada:TODAY()});
+    if(s.who===S.me)propias++;
+    S.tasks.push({id:uid(),title:s.name,desc:'',who:s.who?[s.who]:[],do:ini,due:due,drop:nm,done:false,doneAt:null,pushed:0,creada:TODAY()});
   });
   save();cerrar('ovDrop');
   S.fltDrop=nm;S.fltEst='pend';setNav('todas');render();
@@ -1090,20 +1122,21 @@ function pintarGente(){
 function seed(){
   var t=TODAY();
   S.tasks=[
-    {id:uid(),title:'Cerrar la selección de telas',desc:'Definir con el proveedor las tres telas del drop. Faltan los precios por metro del frisa y confirmar si llegan los colores que pedimos.',who:'AXEL',do:addD(t,-3),due:addD(t,-1),drop:'DROP PILCHA',done:false,pushed:3},
-    {id:uid(),title:'Pedir presupuesto de estampa',desc:'A los dos talleres, por las 400 unidades. Pedir precio con y sin base blanca.',who:'MATE',do:t,due:addD(t,2),drop:'DROP PILCHA',done:false,pushed:0},
-    {id:uid(),title:'Armar el brief de fotos',desc:'Referencias de locación, looks y cantidad de fotos por producto para pasarle al fotógrafo.',who:'MILI',do:t,due:addD(t,5),drop:'DROP PILCHA',done:false,pushed:0},
-    {id:uid(),title:'Responder los mayoristas pendientes',desc:'Quedaron cuatro consultas sin contestar de la semana pasada.',who:'MARTU',do:t,due:t,drop:'',done:false,pushed:0},
-    {id:uid(),title:'Actualizar stock de la tienda',desc:'Después del sale quedaron diferencias en talles. Revisar contra el depósito antes de publicar.',who:'TOMI',do:t,due:addD(t,1),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Pasarle a Fede los vencimientos de septiembre',desc:'',who:'AXEL',do:t,due:addD(t,3),drop:'',done:false,pushed:1},
-    {id:uid(),title:'Revisar el reporte de ventas de la semana',desc:'',who:'FEDE',do:t,due:addD(t,1),drop:'',done:true,pushed:0},
-    {id:uid(),title:'Mandarle a Axel el resumen de caja de agosto',desc:'',who:'FEDE',do:t,due:addD(t,2),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Sacar los talles quebrados del cupón',desc:'Los que se agotan solos no necesitan descuento. Dejar el cupón para el stock lento.',who:'TOMI',do:addD(t,1),due:addD(t,4),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Definir el casting para la campaña',desc:'Dos perfiles, ver disponibilidad para la semana del shooting.',who:'MILI',do:addD(t,2),due:addD(t,6),drop:'DROP PILCHA',done:false,pushed:0},
-    {id:uid(),title:'Reunión de equipo',desc:'Repasar el calendario de drops y repartir lo que quedó suelto.',who:'AXEL',do:addD(t,3),due:addD(t,3),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Cargar las fichas técnicas nuevas',desc:'',who:'MATE',do:addD(t,5),due:addD(t,9),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Cerrar la lista de precios mayorista',desc:'Actualizar septiembre con el ajuste que definimos.',who:'FEDE',do:addD(t,6),due:addD(t,10),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Pedir las muestras de cierres',desc:'Al proveedor nuevo, para comparar con los que veníamos usando.',who:'MARTU',do:addD(t,-2),due:addD(t,-1),drop:'DROP PILCHA',done:false,pushed:2}
+    {id:uid(),title:'Cerrar la selección de telas',desc:'Definir con el proveedor las tres telas del drop. Faltan los precios por metro del frisa y confirmar si llegan los colores que pedimos.',who:['AXEL'],do:addD(t,-3),due:addD(t,-1),drop:'DROP PILCHA',done:false,pushed:3},
+    {id:uid(),title:'Pedir presupuesto de estampa',desc:'A los dos talleres, por las 400 unidades. Pedir precio con y sin base blanca.',who:['MATE'],do:t,due:addD(t,2),drop:'DROP PILCHA',done:false,pushed:0},
+    {id:uid(),title:'Armar el brief de fotos',desc:'Referencias de locación, looks y cantidad de fotos por producto para pasarle al fotógrafo.',who:['MILI'],do:t,due:addD(t,5),drop:'DROP PILCHA',done:false,pushed:0},
+    {id:uid(),title:'Responder los mayoristas pendientes',desc:'Quedaron cuatro consultas sin contestar de la semana pasada.',who:['MARTU'],do:t,due:t,drop:'',done:false,pushed:0},
+    {id:uid(),title:'Actualizar stock de la tienda',desc:'Después del sale quedaron diferencias en talles. Revisar contra el depósito antes de publicar.',who:['TOMI'],do:t,due:addD(t,1),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Pasarle a Fede los vencimientos de septiembre',desc:'',who:['AXEL'],do:t,due:addD(t,3),drop:'',done:false,pushed:1},
+    {id:uid(),title:'Revisar el reporte de ventas de la semana',desc:'',who:['FEDE'],do:t,due:addD(t,1),drop:'',done:true,pushed:0},
+    {id:uid(),title:'Mandarle a Axel el resumen de caja de agosto',desc:'',who:['FEDE'],do:t,due:addD(t,2),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Sacar los talles quebrados del cupón',desc:'Los que se agotan solos no necesitan descuento. Dejar el cupón para el stock lento.',who:['TOMI'],do:addD(t,1),due:addD(t,4),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Definir el casting para la campaña',desc:'Dos perfiles, ver disponibilidad para la semana del shooting.',who:['MILI'],do:addD(t,2),due:addD(t,6),drop:'DROP PILCHA',done:false,pushed:0},
+    {id:uid(),title:'Reunión de equipo',desc:'Repasar el calendario de drops y repartir lo que quedó suelto.',who:['AXEL','FEDE','MATE'],do:addD(t,3),due:addD(t,3),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Preparar el shooting del drop',desc:'Locación, ropa planchada y lista de looks. Lo arman entre los dos.',who:['MILI','MARTU'],do:t,due:addD(t,2),drop:'DROP PILCHA',done:false,pushed:0},
+    {id:uid(),title:'Cargar las fichas técnicas nuevas',desc:'',who:['MATE'],do:addD(t,5),due:addD(t,9),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Cerrar la lista de precios mayorista',desc:'Actualizar septiembre con el ajuste que definimos.',who:['FEDE'],do:addD(t,6),due:addD(t,10),drop:'',done:false,pushed:0},
+    {id:uid(),title:'Pedir las muestras de cierres',desc:'Al proveedor nuevo, para comparar con los que veníamos usando.',who:['MARTU'],do:addD(t,-2),due:addD(t,-1),drop:'DROP PILCHA',done:false,pushed:2}
   ].map(function(x){x.doneAt=x.done?t:null;x.creada=t;return x;});
   save();
 }
@@ -1125,8 +1158,8 @@ document.addEventListener('click',function(e){
     cerrarSheet();cerrarFilas(null);return;
   }
   if((el=e.target.closest('[data-rs]'))){
-    if(S.actId)reasignar(S.actId,el.dataset.rs);
-    cerrarSheet();cerrarFilas(null);return;
+    if(S.actId)toggleResp(S.actId,el.dataset.rs);
+    return; /* la hoja sigue abierta: se pueden marcar varios */
   }
 
   /* panel lateral */
@@ -1161,7 +1194,11 @@ document.addEventListener('click',function(e){
   if(e.target.closest('#tipX')){S.tip=false;save();render();return;}
   if(e.target.closest('#detEdit')){cerrar('ovDet');modalTarea(find(S.detId));return;}
 
-  if((el=e.target.closest('[data-who]'))){chipsWho(el.dataset.who);return;}
+  if((el=e.target.closest('[data-who]'))){
+    var n=el.dataset.who,i=S.fWhos.indexOf(n);
+    if(i>=0)S.fWhos.splice(i,1); else S.fWhos.push(n);
+    chipsWho();return;
+  }
   if((el=e.target.closest('[data-do]'))){document.getElementById('fDo').value=addD(TODAY(),+el.dataset.do);return;}
   if((el=e.target.closest('[data-due]'))){
     var v=el.dataset.due,b=document.getElementById('fDo').value||TODAY();
