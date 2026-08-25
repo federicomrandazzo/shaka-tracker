@@ -100,13 +100,13 @@ nav button .b{
 .tipswipe b{font-weight:500;color:var(--text)}
 .tipswipe .x{margin-left:auto;flex:0 0 auto;width:28px;height:28px;color:var(--muted);font-size:13px}
 
-.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0 4px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:11px 12px}
-.card .v{font-size:21px;font-weight:700;line-height:1}
-.card .l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;margin-top:5px}
-.card.bad{background:var(--alert-dim);border-color:rgba(192,57,43,.25)}
-.card.bad .v{color:var(--alert)}
-.card.ok .v{color:var(--accent)}
+.bigrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ordtog{
+  flex:0 0 auto;border:1px solid var(--border);border-radius:3px;padding:8px 11px;min-height:38px;
+  font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);white-space:nowrap;
+}
+.ordtog.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.sech .r{display:flex;align-items:center}
 
 /* ============ SECCIONES ============ */
 .sec{margin-top:22px}
@@ -161,8 +161,19 @@ nav button .b{
   margin-top:4px;font-size:12.5px;line-height:1.45;color:var(--muted);word-break:break-word;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
 }
-.desc.full{-webkit-line-clamp:unset;display:block}
-.more{margin-top:3px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);padding:4px 0;min-height:26px}
+/* modo ordenar: flechas para darle prioridad */
+.ordb{flex:0 0 auto;display:flex;flex-direction:column;margin:-6px -6px -6px 0}
+.ordb button{
+  width:44px;height:38px;display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:3px;background:var(--bg);
+}
+.ordb button:first-child{border-bottom:none;border-radius:3px 3px 0 0}
+.ordb button:last-child{border-radius:0 0 3px 3px}
+.ordb button:active{background:var(--accent);border-color:var(--accent);color:#fff}
+.t.ord .tface{padding-left:2px}
+.t.ord .ttl{font-size:13.5px}
+.t.ord .desc{-webkit-line-clamp:1}
+.sec.done .t{opacity:.75}
 .meta{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
 .tag{
   display:inline-block;border-radius:2px;padding:2px 7px;
@@ -299,6 +310,11 @@ main{padding-bottom:108px}
 .del{width:100%;margin-top:9px;border:1px solid var(--border);border-radius:var(--r);min-height:46px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
 .del:active{border-color:var(--alert);color:var(--alert)}
 .hint{font-size:11px;color:var(--muted);line-height:1.6;margin-top:9px}
+/* detalle */
+.dtitle{font-size:21px;font-weight:700;line-height:1.25;margin-top:22px;letter-spacing:-.2px;word-break:break-word}
+.ddesc{margin-top:12px;font-size:14.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.ddesc.vacia{color:var(--muted);font-style:italic;font-size:13px}
+.dmeta{display:flex;flex-wrap:wrap;gap:6px;margin-top:22px;padding-top:16px;border-top:1px solid var(--border)}
 
 /* etapas del drop */
 .stghead{display:flex;gap:7px;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding-bottom:6px;border-bottom:1px solid var(--border)}
@@ -419,6 +435,15 @@ main{padding-bottom:108px}
   </div>
 </aside>
 
+<!-- DETALLE DE LA TAREA -->
+<div class="ov" id="ovDet"><div class="modal">
+  <div class="mh"><h3>Tarea</h3><button data-close="ovDet">Cerrar ✕</button></div>
+  <h2 class="dtitle" id="detTitle"></h2>
+  <div class="ddesc" id="detDesc"></div>
+  <div class="dmeta" id="detMeta"></div>
+  <button class="save" id="detEdit">Editar tarea</button>
+</div></div>
+
 <!-- MODAL TAREA -->
 <div class="ov" id="ovTask"><div class="modal">
   <div class="mh"><h3 id="taskTitle">Nueva tarea</h3><button data-close="ovTask">Cerrar ✕</button></div>
@@ -500,8 +525,8 @@ var DEF_STAGES=[
   {name:'LANZAMIENTO',before:0,dur:1,who:''}
 ];
 var S={team:DEF_TEAM.slice(),tasks:[],me:null,view:'hoy',tip:true,
-       fWho:'',fTask:null,stages:null,collapsed:{},openP:{},expand:{},
-       fltDrop:'',fltEst:'pend',actId:null};
+       fWho:'',fTask:null,stages:null,collapsed:{},openP:{},
+       fltDrop:'',fltEst:'pend',actId:null,detId:null,orden:false};
 
 function save(){try{localStorage.setItem(KEY,JSON.stringify({team:S.team,tasks:S.tasks,me:S.me,tip:S.tip}));}catch(e){}}
 function load(){
@@ -558,26 +583,36 @@ function htmlTarea(t){
   var m=tagDeadline(t);
   if(t.drop)m+='<span class="tag drop">'+esc(t.drop)+'</span>';
   if(t.pushed>=2&&!t.done)m+='<span class="tag push">Corrida '+t.pushed+' veces</span>';
-  return '<div class="t'+(t.done?' done':'')+(esVencida(t)?' late':'')+'" data-id="'+t.id+'">'+
-    '<div class="tacts">'+
+  return '<div class="t'+(t.done?' done':'')+(esVencida(t)?' late':'')+(S.orden?' ord':'')+'" data-id="'+t.id+'">'+
+    (S.orden?'':'<div class="tacts">'+
       '<button class="a1" data-act="pasar"><span class="ic">→</span>Pasar</button>'+
       '<button class="a2" data-act="resp"><span class="ic">◑</span>Responsable</button>'+
       '<button class="a3" data-act="del"><span class="ic">✕</span>Eliminar</button>'+
-    '</div>'+
+    '</div>')+
     '<div class="tface">'+
-      '<button class="chk" data-act="toggle" aria-label="Marcar"><i>✓</i></button>'+
-      '<div class="tbody">'+
-        '<div class="ttl" data-act="edit">'+esc(t.title)+'</div>'+
-        (t.desc?'<div class="desc'+(S.expand[t.id]?' full':'')+'" data-act="expand">'+esc(t.desc)+'</div>'+
-                (t.desc.length>90?'<button class="more" data-act="expand">'+(S.expand[t.id]?'Ver menos':'Ver más')+'</button>':''):'')+
+      (S.orden?'':'<button class="chk" data-act="toggle" aria-label="Marcar"><i>✓</i></button>')+
+      '<div class="tbody"'+(S.orden?'':' data-act="open"')+'>'+
+        '<div class="ttl">'+esc(t.title)+'</div>'+
+        (t.desc?'<div class="desc">'+esc(t.desc)+'</div>':'')+
         '<div class="meta">'+m+'</div>'+
       '</div>'+
-      '<div class="grip">‹‹</div>'+
+      (S.orden
+        ?'<div class="ordb"><button data-act="up" aria-label="Subir">▲</button><button data-act="down" aria-label="Bajar">▼</button></div>'
+        :'<div class="grip">‹‹</div>')+
     '</div></div>';
+}
+/* pendientes primero; lo tachado se va al fondo y queda tachado */
+function ordenar(a){
+  var p=[],h=[];
+  a.forEach(function(t){(t.done?h:p).push(t);});
+  return p.concat(h);
 }
 function lista(a,vacio){
   if(!a.length)return'<div class="empty">'+vacio+'</div>';
-  return a.map(htmlTarea).join('');
+  return ordenar(a).map(htmlTarea).join('');
+}
+function btnOrden(){
+  return'<button class="ordtog'+(S.orden?' on':'')+'" id="ordTog">'+(S.orden?'✓ Listo':'⇅ Ordenar')+'</button>';
 }
 function htmlRO(t){
   var n=[];
@@ -596,33 +631,30 @@ function tipHTML(){
 }
 function vistaHoy(){
   var t=TODAY(),v=mias(),h='';
-  var venc=v.filter(esVencida).sort(function(a,b){return a.due<b.due?-1:1;});
+  var venc=v.filter(esVencida);
   var hoy=v.filter(function(x){return !x.done&&x.do===t&&!esVencida(x);});
   var atras=v.filter(function(x){return !x.done&&x.do<t&&!esVencida(x);});
   var hechas=v.filter(function(x){return x.done&&(x.doneAt===t||x.do===t);});
+  var pend=venc.length+hoy.length+atras.length;
   var d=parse(t);
 
   h+='<section class="vhead"><div class="d">'+DIAS[d.getDay()]+' · '+fmt(t)+'</div>'+
      '<div class="big">Hola, '+esc(S.me)+'</div>'+
      '<div class="note">'+(venc.length?'Tenés '+venc.length+' tarea'+(venc.length>1?'s':'')+' vencida'+(venc.length>1?'s':'')+'.':
-        (hoy.length+atras.length)?'Tenés '+(hoy.length+atras.length)+' tarea'+((hoy.length+atras.length)>1?'s':'')+' para hoy.':'Estás al día.')+'</div>'+
-     tipHTML()+
-     '<div class="cards">'+
-       '<div class="card'+(venc.length?' bad':'')+'"><div class="v">'+venc.length+'</div><div class="l">Vencidas</div></div>'+
-       '<div class="card"><div class="v">'+(hoy.length+atras.length)+'</div><div class="l">Para hoy</div></div>'+
-       '<div class="card'+(hechas.length?' ok':'')+'"><div class="v">'+hechas.length+'</div><div class="l">Hechas hoy</div></div>'+
-     '</div></section>';
+        pend?'Tenés '+pend+' tarea'+(pend>1?'s':'')+' para hoy.':'Estás al día.')+'</div>'+
+     tipHTML()+'</section>';
 
   if(venc.length)h+='<section class="sec"><div class="sech bad"><span>Vencidas</span><span class="n">'+venc.length+'</span></div>'+lista(venc,'')+'</section>';
-  h+='<section class="sec"><div class="sech"><span>Para hoy</span><span class="n">'+hoy.length+'</span></div>'+
+  h+='<section class="sec"><div class="sech"><span>Para hoy</span><span class="r">'+btnOrden()+'</span></div>'+
      lista(hoy,'No tenés nada agendado para hoy.<br>Tocá <b>+ Tarea</b> para sumar algo.')+'</section>';
   if(atras.length)h+='<section class="sec"><div class="sech"><span>Quedaron de días anteriores</span><span class="n">'+atras.length+'</span></div>'+lista(atras,'')+'</section>';
-  if(hechas.length)h+='<section class="sec"><div class="sech"><span>Hechas hoy</span><span class="n">'+hechas.length+'</span></div>'+lista(hechas,'')+'</section>';
+  if(hechas.length)h+='<section class="sec done"><div class="sech"><span>Hechas</span><span class="n">'+hechas.length+'</span></div>'+lista(hechas,'')+'</section>';
   return h;
 }
 
 function vistaTodas(){
-  var h='<section class="vhead"><div class="d">Todo lo tuyo, día por día</div><div class="big">Mi lista</div></section>';
+  var h='<section class="vhead"><div class="d">Todo lo tuyo, día por día</div>'+
+        '<div class="bigrow"><div class="big">Mi lista</div>'+btnOrden()+'</div></section>';
   var ds=drops();
   h+='<div class="filters">'+
      '<select id="fltEst">'+
@@ -651,7 +683,7 @@ function vistaTodas(){
     h+='<div class="daygrp"><button class="dayh'+(k<t0?' past':'')+'" data-day="'+k+'">'+
        '<span><span class="chev'+(cerr?'':' open')+'">▶</span> '+(k==='sin'?'SIN FECHA':nombreDia(k))+'</span>'+
        '<span class="n">'+pend+'/'+g[k].length+'</span></button>';
-    if(!cerr)h+=g[k].map(htmlTarea).join('');
+    if(!cerr)h+=lista(g[k],'');
     h+='</div>';
   });
   return h;
@@ -735,6 +767,43 @@ function reasignar(id,quien){
   render();
 }
 
+/* ===================== detalle ===================== */
+function verTarea(id){
+  var t=find(id);if(!t)return;
+  S.detId=id;
+  document.getElementById('detTitle').textContent=t.title;
+  var dd=document.getElementById('detDesc');
+  dd.textContent=t.desc||'';
+  dd.className='ddesc'+(t.desc?'':' vacia');
+  if(!t.desc)dd.textContent='Sin descripción.';
+  var m='<span class="tag who">'+esc(t.who||'sin asignar')+'</span>';
+  m+='<span class="tag">La hago el '+fmt(t.do)+'</span>';
+  m+=t.due?tagDeadline(t):'<span class="tag">Sin deadline</span>';
+  if(t.drop)m+='<span class="tag drop">'+esc(t.drop)+'</span>';
+  if(t.done)m+='<span class="tag">Hecha</span>';
+  document.getElementById('detMeta').innerHTML=m;
+  abrir('ovDet');
+}
+
+/* ===================== prioridad (subir / bajar) ===================== */
+function mover1(id,dir){
+  var row=document.querySelector('.t[data-id="'+id+'"]');
+  if(!row)return;
+  var hermana=dir<0?row.previousElementSibling:row.nextElementSibling;
+  while(hermana&&!hermana.classList.contains('t'))hermana=dir<0?hermana.previousElementSibling:hermana.nextElementSibling;
+  if(!hermana)return;
+  var i=-1,j=-1,otro=hermana.dataset.id;
+  for(var k=0;k<S.tasks.length;k++){
+    if(S.tasks[k].id===id)i=k;
+    if(S.tasks[k].id===otro)j=k;
+  }
+  if(i<0||j<0)return;
+  var tmp=S.tasks[i];S.tasks[i]=S.tasks[j];S.tasks[j]=tmp;
+  save();render();
+  var nueva=document.querySelector('.t[data-id="'+id+'"]');
+  if(nueva&&nueva.scrollIntoView)nueva.scrollIntoView({block:'nearest'});
+}
+
 /* ===================== hoja de acciones ===================== */
 function abrirSheet(titulo,html,id){
   S.actId=id||null;
@@ -775,10 +844,11 @@ function cerrarFilas(menos){
   for(var i=0;i<a.length;i++) if(a[i]!==menos) a[i].classList.remove('open');
 }
 function swStart(x,y,target){
+  if(S.orden)return; /* en modo ordenar mandan las flechas, no el deslizar */
   var face=target.closest?target.closest('.tface'):null;
   if(!face)return;
   var t=face.parentNode;
-  if(target.closest('.chk')||target.closest('.more'))return;
+  if(target.closest('.chk'))return;
   SW.el=t;SW.x0=x;SW.y0=y;SW.dx=0;SW.activo=true;SW.decidido=false;SW.movio=false;
 }
 function swMove(x,y,ev){
@@ -997,6 +1067,8 @@ document.addEventListener('click',function(e){
     }return;
   }
   if(e.target.closest('#tipX')){S.tip=false;save();render();return;}
+  if(e.target.closest('#ordTog')){S.orden=!S.orden;cerrarFilas(null);render();return;}
+  if(e.target.closest('#detEdit')){cerrar('ovDet');modalTarea(find(S.detId));return;}
 
   if((el=e.target.closest('[data-who]'))){chipsWho(el.dataset.who);return;}
   if((el=e.target.closest('[data-do]'))){document.getElementById('fDo').value=addD(TODAY(),+el.dataset.do);return;}
@@ -1030,10 +1102,11 @@ document.addEventListener('click',function(e){
     if(a==='pasar')return sheetPasar(row.dataset.id);
     if(a==='resp')return sheetResp(row.dataset.id);
     if(a==='del'){row.classList.remove('open');return borrar(row.dataset.id);}
+    if(a==='up')return mover1(row.dataset.id,-1);
+    if(a==='down')return mover1(row.dataset.id,1);
     if(row.classList.contains('open')){row.classList.remove('open');return;} /* tocar la fila abierta la cierra */
-    if(a==='expand'){S.expand[row.dataset.id]=!S.expand[row.dataset.id];render();return;}
     if(a==='toggle')return toggle(row.dataset.id);
-    if(a==='edit')return modalTarea(find(row.dataset.id));
+    if(a==='open')return verTarea(row.dataset.id);
     return;
   }
   cerrarFilas(null); /* tocar fuera cierra la fila abierta */
