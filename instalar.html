@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<title>Shaka · Instalar Tareas</title>
+<style>
+:root{
+  --bg:#ffffff; --surface:#f8f8f8; --border:#e7e7e7; --text:#0a0a0a; --muted:#888888;
+  --accent:#3993bb; --accent-dim:rgba(57,147,187,.1); --r:4px;
+  --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  padding:calc(28px + var(--safe-t)) 20px calc(40px + var(--safe-b));
+}
+.wrap{max-width:520px;margin:0 auto}
+header{text-align:center;padding-bottom:26px;border-bottom:1px solid var(--border)}
+header img{height:26px;object-fit:contain}
+header .sub{margin-top:10px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+h1{font-size:23px;font-weight:700;letter-spacing:-.2px;margin-top:26px;line-height:1.2}
+.lead{margin-top:8px;color:var(--muted);font-size:13.5px}
+
+.card{border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-top:20px}
+.card.destacada{border-color:var(--accent);background:var(--accent-dim)}
+.card h2{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.card.destacada h2{color:var(--accent)}
+
+ol{list-style:none;counter-reset:paso}
+ol li{
+  counter-increment:paso;position:relative;padding-left:38px;padding-bottom:16px;font-size:14.5px;
+}
+ol li:last-child{padding-bottom:0}
+ol li::before{
+  content:counter(paso);position:absolute;left:0;top:-1px;
+  width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;
+  font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;
+}
+ol li b{font-weight:700}
+.icono{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border:1px solid var(--border);border-radius:4px;
+  vertical-align:-6px;margin:0 2px;background:var(--bg);
+}
+.icono svg{width:13px;height:13px}
+
+.btn{
+  display:block;width:100%;text-align:center;text-decoration:none;
+  background:var(--accent);color:#fff;border:none;border-radius:var(--r);
+  padding:16px;margin-top:22px;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  font-family:inherit;cursor:pointer;
+}
+.btn:active{opacity:.85}
+.btn.sec{background:none;border:1px solid var(--border);color:var(--muted);font-weight:500;letter-spacing:1px}
+.nota{margin-top:22px;font-size:12px;color:var(--muted);line-height:1.6}
+.nota b{color:var(--text);font-weight:500}
+.oculto{display:none}
+footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--border);text-align:center;font-size:10px;letter-spacing:1px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <img src="https://acdn-us.mitiendanube.com/stores/001/708/518/themes/common/logo-6368644953230226171-1778266705-631e4e0496ffdabc5f328528caf8e87e1778266705-320-0.webp" alt="Shaka">
+    <div class="sub">Tareas</div>
+  </header>
+
+  <h1 id="titulo">Ponela en tu celular</h1>
+  <p class="lead" id="bajada">Queda como una app más, con su ícono, y abre a pantalla completa.</p>
+
+  <!-- iPhone / iPad -->
+  <div class="card destacada oculto" id="ios">
+    <h2>Desde el iPhone</h2>
+    <ol>
+      <li>Abrí esta página en <b>Safari</b> (si estás en Chrome o Instagram, no va a funcionar).</li>
+      <li>Tocá el botón <b>Compartir</b>
+        <span class="icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4M5 14v5a2 2 0 002 2h10a2 2 0 002-2v-5"/></svg></span>
+        abajo en el medio de la pantalla.</li>
+      <li>Deslizá hacia abajo y elegí <b>Agregar a pantalla de inicio</b>.</li>
+      <li>Tocá <b>Agregar</b> arriba a la derecha. Listo.</li>
+    </ol>
+  </div>
+
+  <!-- Android / Chrome de escritorio -->
+  <div class="card destacada oculto" id="android">
+    <h2>Desde Android</h2>
+    <ol>
+      <li>Tocá el botón de abajo y confirmá <b>Instalar</b>.</li>
+      <li>Si no aparece nada, abrí el menú <b>⋮</b> de Chrome y elegí <b>Instalar aplicación</b> o <b>Agregar a pantalla principal</b>.</li>
+    </ol>
+    <button class="btn oculto" id="btnInstalar">Instalar ahora</button>
+  </div>
+
+  <div class="card oculto" id="escritorio">
+    <h2>Desde la computadora</h2>
+    <ol>
+      <li>En Chrome, mirá el ícono de instalar
+        <span class="icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>
+        a la derecha de la barra de direcciones.</li>
+      <li>También lo tenés en el menú <b>⋮</b> → <b>Enviar, guardar y compartir</b> → <b>Instalar página como aplicación</b>.</li>
+    </ol>
+    <button class="btn oculto" id="btnInstalar2">Instalar ahora</button>
+  </div>
+
+  <div class="card oculto" id="yaesta">
+    <h2>Ya la tenés</h2>
+    <p>Estás usando la versión instalada. No hace falta hacer nada.</p>
+  </div>
+
+  <a class="btn" href="./">Abrir Tareas</a>
+
+  <p class="nota">
+    <b>Si ya la tenías instalada de antes</b>, borrá el acceso directo viejo y volvé a agregarlo:
+    cambiamos el ícono y el nombre, y el iPhone se guarda el anterior.
+  </p>
+
+  <footer>SHAKA CMMNTY® · TAREAS</footer>
+</div>
+
+<script>
+(function(){
+  var ua = navigator.userAgent;
+  var esIOS = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  var esAndroid = /Android/i.test(ua);
+  var instalada = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+                  || window.navigator.standalone === true;
+
+  function mostrar(id){ document.getElementById(id).classList.remove('oculto'); }
+
+  if (instalada) {
+    mostrar('yaesta');
+    document.getElementById('titulo').textContent = 'Ya está instalada';
+    document.getElementById('bajada').textContent = 'Estás abriendo la app desde tu pantalla de inicio.';
+  } else if (esIOS) {
+    mostrar('ios');
+  } else if (esAndroid) {
+    mostrar('android');
+  } else {
+    mostrar('escritorio');
+  }
+
+  // Chrome guarda el pedido de instalación: lo enganchamos para el botón
+  var pedido = null;
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    pedido = e;
+    ['btnInstalar','btnInstalar2'].forEach(function(id){
+      var b = document.getElementById(id);
+      if (b) b.classList.remove('oculto');
+    });
+  });
+  ['btnInstalar','btnInstalar2'].forEach(function(id){
+    var b = document.getElementById(id);
+    if (!b) return;
+    b.addEventListener('click', function(){
+      if (!pedido) return;
+      pedido.prompt();
+      pedido.userChoice.then(function(){ pedido = null; b.classList.add('oculto'); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

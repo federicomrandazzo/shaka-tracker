@@ -24,6 +24,7 @@ var SECRETO = 'cambiar-esto-por-una-frase-larga-inventada';
 
 var HOJA_U = 'usuarios';
 var HOJA_T = 'tareas';
+var HOJA_A = 'accesos';
 
 var COLS = ['id','titulo','desc','quien','dia','vence','hecha','hechaEl',
             'corrida','drop','orden','borrada','actualizada'];
@@ -34,13 +35,26 @@ function preparar(){
 
   var u = ss.getSheetByName(HOJA_U) || ss.insertSheet(HOJA_U);
   if (u.getLastRow() < 1 || !u.getRange(1,1).getValue()) {
-    u.getRange(1,1,1,3).setValues([['nombre','clave','activo']]);
+    u.getRange(1,1,1,4).setValues([['nombre','clave','activo','nolog']]);
     var gente = ['FEDE','AXEL','MATE','MILI','TOMI','MARTU'];
-    var filas = gente.map(function(n){ return [n, '', 'si']; });
-    u.getRange(2,1,filas.length,3).setValues(filas);
-    u.getRange(1,1,1,3).setFontWeight('bold');
+    var filas = gente.map(function(n){ return [n, '', 'si', '']; });
+    u.getRange(2,1,filas.length,4).setValues(filas);
+    u.getRange(1,1,1,4).setFontWeight('bold');
     u.setFrozenRows(1);
-    u.setColumnWidth(1,140); u.setColumnWidth(2,160); u.setColumnWidth(3,80);
+    u.setColumnWidth(1,140); u.setColumnWidth(2,160); u.setColumnWidth(3,80); u.setColumnWidth(4,80);
+  }
+  // columna "nolog": poner "si" en tu fila para no aparecer en el registro de accesos
+  if (String(u.getRange(1,4).getValue()).trim().toLowerCase() !== 'nolog') {
+    u.getRange(1,4).setValue('nolog').setFontWeight('bold');
+    u.setColumnWidth(4,80);
+  }
+
+  var a = ss.getSheetByName(HOJA_A) || ss.insertSheet(HOJA_A);
+  if (a.getLastRow() < 1 || !a.getRange(1,1).getValue()) {
+    a.getRange(1,1,1,4).setValues([['fecha','persona','evento','dispositivo']]);
+    a.getRange(1,1,1,4).setFontWeight('bold');
+    a.setFrozenRows(1);
+    a.setColumnWidth(1,150); a.setColumnWidth(2,110); a.setColumnWidth(3,220); a.setColumnWidth(4,120);
   }
 
   var t = ss.getSheetByName(HOJA_T) || ss.insertSheet(HOJA_T);
@@ -49,7 +63,7 @@ function preparar(){
     t.getRange(1,1,1,COLS.length).setFontWeight('bold');
     t.setFrozenRows(1);
   }
-  return 'Listo: hojas "usuarios" y "tareas" preparadas. Cargá las claves en la hoja usuarios.';
+  return 'Listo: hojas "usuarios", "tareas" y "accesos" preparadas.';
 }
 
 /* ============ utilidades ============ */
@@ -60,17 +74,19 @@ function hash_(txt){
 function token_(nombre, clave){ return hash_(nombre + '|' + clave + '|' + SECRETO); }
 
 function hojaU_(){ return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_U); }
+function hojaA_(){ return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_A); }
 function hojaT_(){ return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_T); }
 
 function usuarios_(){
   var h = hojaU_(), n = h.getLastRow() - 1;
   if (n < 1) return [];
-  return h.getRange(2,1,n,3).getValues()
+  return h.getRange(2,1,n,4).getValues()
     .filter(function(f){ return String(f[0]).trim(); })
     .map(function(f){
       return { nombre: String(f[0]).trim().toUpperCase(),
                clave:  String(f[1]).trim(),
-               activo: String(f[2]).trim().toLowerCase() !== 'no' };
+               activo: String(f[2]).trim().toLowerCase() !== 'no',
+               nolog:  String(f[3]).trim().toLowerCase() === 'si' };
     });
 }
 
@@ -194,7 +210,7 @@ function doPost(e){
         if (us[i].nombre === nombre && us[i].activo) {
           if (!us[i].clave) return error_('Ese usuario todavía no tiene clave cargada. Avisale a Fede.');
           if (us[i].clave !== clave) return error_('Clave incorrecta.');
-          return ok_({ nombre: nombre, token: token_(nombre, clave),
+          return ok_({ nombre: nombre, token: token_(nombre, clave), nolog: us[i].nolog,
                        gente: us.filter(function(u){return u.activo;}).map(function(u){return u.nombre;}),
                        tareas: leerTareas_() });
         }
@@ -204,6 +220,16 @@ function doPost(e){
 
     var quien = porToken_(p.token);
     if (!quien) return error_('Sesión vencida, volvé a entrar.');
+
+    if (accion === 'log') {
+      if (!quien.nolog) {
+        var a = hojaA_();
+        if (a) a.appendRow([ new Date(), quien.nombre,
+                             String(p.evento||'').slice(0,120),
+                             String(p.dispositivo||'').slice(0,60) ]);
+      }
+      return ok_({});
+    }
 
     if (accion === 'pull') {
       return ok_({ tareas: leerTareas_(),

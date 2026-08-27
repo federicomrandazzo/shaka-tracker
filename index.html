@@ -285,6 +285,7 @@ main.wrap{padding-bottom:158px}
   font-size:12px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;
 }
 .dlink .ic{flex:0 0 auto;width:20px;text-align:center;font-size:14px;color:var(--accent)}
+a.dlink{text-decoration:none;color:inherit}
 .dlink:active{color:var(--accent)}
 .dlink .cnt{margin-left:auto;font-size:10px;font-weight:400;letter-spacing:.4px;text-transform:none;color:var(--muted)}
 .dlink .chev{flex:0 0 auto;width:14px;text-align:right;font-size:10px;color:var(--muted);transition:transform .2s}
@@ -487,6 +488,7 @@ main.wrap{padding-bottom:158px}
     <button class="dlink" id="dDrop"><span class="ic">◈</span> Nuevo drop</button>
     <button class="dlink" id="dEq"><span class="ic">▣</span> Equipo <span class="cnt" id="dEqCnt"></span><span class="chev" id="dEqChev">▸</span></button>
     <div id="dTeam" class="eqbox"></div>
+    <a class="dlink" id="dInstalar" href="instalar.html"><span class="ic">⤓</span> Instalar en el celular</a>
     <div class="estado" id="dEstado"></div>
     <button class="dlink" id="dSalir"><span class="ic">⏻</span> Salir</button>
   </div>
@@ -569,18 +571,18 @@ var DEF_STAGES=[
   {name:'LANZAMIENTO',before:0,dur:1,who:''}
 ];
 var API='https://script.google.com/macros/s/AKfycbyAb0qkq-WBLvZAn_Mjgociomgpb5FcjoY3aPgxuQkARHXViNt7TeF1el0eflIU0dQk/exec';
-var S={team:DEF_TEAM.slice(),tasks:[],me:null,token:null,view:'hoy',tip:true,
+var S={team:DEF_TEAM.slice(),tasks:[],me:null,token:null,nolog:false,view:'hoy',tip:true,
        fWhos:[],fTask:null,stages:null,collapsed:{},viendo:null,sheetResp:false,
        fltDrop:'',fltEst:'pend',actId:null,detId:null,eqOpen:false};
 
 function save(){try{localStorage.setItem(KEY,JSON.stringify(
-  {team:S.team,tasks:S.tasks,me:S.me,token:S.token,tip:S.tip,pend:Object.keys(NET.pend)}));}catch(e){}}
+  {team:S.team,tasks:S.tasks,me:S.me,token:S.token,nolog:S.nolog,tip:S.tip,pend:Object.keys(NET.pend)}));}catch(e){}}
 function load(){
   try{
     var d=JSON.parse(localStorage.getItem(KEY)||'null');
     if(d){
       S.team=(d.team&&d.team.length)?d.team:DEF_TEAM.slice();
-      S.tasks=d.tasks||[];S.me=d.me||null;S.token=d.token||null;S.tip=d.tip!==false;
+      S.tasks=d.tasks||[];S.me=d.me||null;S.token=d.token||null;S.nolog=!!d.nolog;S.tip=d.tip!==false;
       (d.pend||[]).forEach(function(id){NET.pend[id]=true;}); /* lo que quedó sin subir */
       return true;
     }
@@ -1065,8 +1067,52 @@ function arrancarPoll(){
   },45000);
 }
 document.addEventListener('visibilitychange',function(){
-  if(!document.hidden&&S.token){ if(Object.keys(NET.pend).length)subir(); else bajar(true); }
+  if(document.hidden){
+    USO.ms+=ahora()-USO.desde;
+    anotarSalida();
+  }else{
+    USO.desde=ahora();
+    if(S.token){ if(Object.keys(NET.pend).length)subir(); else bajar(true); }
+  }
 });
+
+/* ===================== registro de accesos =====================
+   Queda en la hoja "accesos" de la planilla: quién entró, cuándo, desde qué
+   aparato y cuántos minutos la usó de verdad (el reloj se frena cuando la
+   app no está en pantalla). Quien tenga "si" en la columna nolog no figura. */
+var USO={ms:0,desde:ahora(),ultimaSalida:0};
+function aparato(){
+  var u=navigator.userAgent;
+  if(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)return 'app instalada';
+  if(/iPhone|iPod/i.test(u))return 'iPhone';
+  if(/iPad/i.test(u))return 'iPad';
+  if(/Android/i.test(u))return 'Android';
+  return 'computadora';
+}
+function minutosUso(){
+  var ms=USO.ms;
+  if(!document.hidden)ms+=ahora()-USO.desde;
+  return Math.max(1,Math.round(ms/60000));
+}
+function anotar(evento,conBeacon){
+  if(!S.token||S.nolog)return;
+  var cuerpo=JSON.stringify({accion:'log',token:S.token,evento:evento,dispositivo:aparato()});
+  try{
+    if(conBeacon&&navigator.sendBeacon){
+      navigator.sendBeacon(API,new Blob([cuerpo],{type:'text/plain;charset=utf-8'}));
+      return;
+    }
+    fetch(API,{method:'POST',mode:'no-cors',keepalive:true,body:cuerpo,
+      headers:{'Content-Type':'text/plain;charset=utf-8'}});
+  }catch(e){}
+}
+function anotarSalida(){
+  if(!S.token||S.nolog)return;
+  if(ahora()-USO.ultimaSalida<30000)return;  /* no duplicar el mismo cierre */
+  USO.ultimaSalida=ahora();
+  anotar('salida · '+minutosUso()+' min de uso',true);
+}
+window.addEventListener('pagehide',anotarSalida);
 
 /* ===================== entrar y salir ===================== */
 function entrar(nombre,clave){
@@ -1075,19 +1121,21 @@ function entrar(nombre,clave){
   api('login',{nombre:nombre,clave:clave}).then(function(r){
     btn.disabled=false;btn.textContent='Entrar';
     if(!r.ok){err.textContent=r.error||'No pudimos entrar.';return;}
-    S.me=r.nombre;S.token=r.token;
+    S.me=r.nombre;S.token=r.token;S.nolog=!!r.nolog;
     if(r.gente&&r.gente.length)S.team=r.gente;
     fusionar(r.tareas);
     NET.ok=true;NET.ultima=ahora();save();
     document.getElementById('fClave').value='';
     setNav('hoy');render();arrancarPoll();
+    USO.ms=0;USO.desde=ahora();anotar('entró');
   })['catch'](function(){
     btn.disabled=false;btn.textContent='Entrar';
     err.textContent='No hay conexión con la planilla. Probá de nuevo.';
   });
 }
 function salir(){
-  S.token=null;S.me=null;S.viendo=null;S.tasks=[];NET.pend={};
+  anotarSalida();
+  S.token=null;S.me=null;S.nolog=false;S.viendo=null;S.tasks=[];NET.pend={};
   if(NET.poll)clearInterval(NET.poll);
   save();cerrarDrawer();render();
 }
@@ -1403,7 +1451,10 @@ document.addEventListener('keydown',function(e){
 /* ===================== arranque ===================== */
 load();
 render();
-if(S.token){bajar();arrancarPoll();}
+if(S.token){
+  bajar();arrancarPoll();
+  setTimeout(function(){anotar('volvió a abrir');},2500);
+}
 </script>
 </body>
 </html>
