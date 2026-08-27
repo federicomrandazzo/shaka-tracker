@@ -212,13 +212,6 @@ body.dragging .t:not(.grab){transition:transform .16s}
 }
 .empty{padding:26px 12px;text-align:center;color:var(--muted);font-size:12px;line-height:1.6}
 
-/* tarea en modo lectura (dentro del panel lateral) */
-.ro{display:flex;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);align-items:flex-start}
-.ro .d{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:var(--border);margin-top:6px}
-.ro.late .d{background:var(--alert)}
-.ro .x{flex:1;min-width:0}
-.ro .x b{display:block;font-size:13px;font-weight:500;line-height:1.35;word-break:break-word}
-.ro .x em{font-style:normal;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
 
 /* ============ FILTROS ============ */
 .filters{display:flex;gap:7px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:15px 0 2px;scrollbar-width:none}
@@ -291,7 +284,17 @@ main.wrap{padding-bottom:158px}
 .pcard .nm small{display:block;font-size:10px;font-weight:400;letter-spacing:.3px;text-transform:none;color:var(--muted);margin-top:2px}
 .pcard .pill{flex:0 0 auto;border-radius:2px;padding:3px 7px;font-size:10px;font-weight:700;background:var(--bg);border:1px solid var(--border);color:var(--muted)}
 .pcard .pill.bad{background:var(--alert);border-color:var(--alert);color:#fff}
-.pcard .in{padding:0 11px 6px}
+.pcard .ir{flex:0 0 auto;color:var(--muted);font-size:16px;margin-left:2px}
+.mirando{
+  display:flex;align-items:center;gap:10px;margin-top:14px;
+  background:var(--accent-dim);border:1px solid rgba(57,147,187,.28);border-radius:var(--r);
+  padding:10px 12px;font-size:12px;color:var(--text);
+}
+.mirando b{font-weight:700}
+.mirando button{
+  margin-left:auto;flex:0 0 auto;border:1px solid var(--accent);border-radius:3px;
+  padding:7px 10px;min-height:36px;font-size:10px;letter-spacing:.5px;color:var(--accent);white-space:nowrap;
+}
 
 /* ============ MODALES ============ */
 .ov{position:fixed;inset:0;background:var(--bg);z-index:80;display:none;overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -551,7 +554,7 @@ var DEF_STAGES=[
   {name:'LANZAMIENTO',before:0,dur:1,who:''}
 ];
 var S={team:DEF_TEAM.slice(),tasks:[],me:null,view:'hoy',tip:true,
-       fWhos:[],fTask:null,stages:null,collapsed:{},openP:{},sheetResp:false,
+       fWhos:[],fTask:null,stages:null,collapsed:{},viendo:null,sheetResp:false,
        fltDrop:'',fltEst:'pend',actId:null,detId:null,eqOpen:false};
 
 function save(){try{localStorage.setItem(KEY,JSON.stringify({team:S.team,tasks:S.tasks,me:S.me,tip:S.tip}));}catch(e){}}
@@ -597,6 +600,11 @@ function whos(t){
 }
 function esDe(t,n){return whos(t).indexOf(n)>=0;}
 function mias(){return S.tasks.filter(function(t){return esDe(t,S.me);});}
+/* la segunda pestaña puede mostrar la lista de otro: S.viendo manda.
+   null = la mía · '' = el cajón de las que no tienen dueño · 'NOMBRE' = la de esa persona */
+function verA(){return S.viendo===null?S.me:S.viendo;}
+function nombreLista(){return S.viendo===''?'sin asignar':verA();}
+function deQuien(){return S.viendo===null?mias():deOtro(S.viendo);}
 function deOtro(n){
   return S.tasks.filter(function(t){
     var w=whos(t);
@@ -621,7 +629,8 @@ function tagDeadline(t){
 }
 function htmlTarea(t){
   var m=tagDeadline(t);
-  var otros=whos(t).filter(function(n){return n!==S.me;});
+  var yo=(S.view==='todas'&&S.viendo!=='')?verA():S.me;
+  var otros=whos(t).filter(function(n){return n!==yo;});
   if(otros.length)m+='<span class="tag who">Con '+esc(otros.join(', '))+'</span>';
   if(t.drop)m+='<span class="tag drop">'+esc(t.drop)+'</span>';
   if(t.pushed>=2&&!t.done)m+='<span class="tag push">Corrida '+t.pushed+' veces</span>';
@@ -650,15 +659,6 @@ function ordenar(a){
 function lista(a,vacio){
   if(!a.length)return'<div class="empty">'+vacio+'</div>';
   return ordenar(a).map(htmlTarea).join('');
-}
-
-function htmlRO(t){
-  var n=[];
-  if(esVencida(t))n.push('vencida');
-  else if(t.due)n.push('vence '+fmtCorto(t.due));
-  if(t.drop)n.push(t.drop);
-  return'<div class="ro'+(esVencida(t)?' late':'')+'"><div class="d"></div>'+
-    '<div class="x"><b>'+esc(t.title)+'</b>'+(n.length?'<em>'+esc(n.join(' · '))+'</em>':'')+'</div></div>';
 }
 
 /* ===================== vistas ===================== */
@@ -692,8 +692,12 @@ function vistaHoy(){
 }
 
 function vistaTodas(){
-  var h='<section class="vhead"><div class="d">Todo lo tuyo, día por día</div>'+
-        '<div class="big">Lista de '+esc(S.me)+'</div></section>';
+  var otro=S.viendo!==null&&S.viendo!==S.me;
+  var h='';
+  if(otro)h+='<div class="mirando"><span>Estás en '+(S.viendo===''?'las tareas <b>sin asignar</b>':'la lista de <b>'+esc(S.viendo)+'</b>')+'</span>'+
+             '<button id="volverMia">Volver a la mía</button></div>';
+  h+='<section class="vhead"><div class="d">'+(otro?'Podés sumarle tareas y ordenarle la prioridad':'Todo lo tuyo, día por día')+'</div>'+
+     '<div class="big">'+(S.viendo===''?'Sin asignar':'Lista de '+esc(verA()))+'</div></section>';
   var ds=drops();
   h+='<div class="filters">'+
      '<select id="fltEst">'+
@@ -704,14 +708,14 @@ function vistaTodas(){
      '<select id="fltDrop"><option value="">Todos los drops</option>'+
        ds.map(function(d){return'<option'+(S.fltDrop===d?' selected':'')+'>'+esc(d)+'</option>';}).join('')+'</select></div>';
 
-  var arr=mias().filter(function(t){
+  var arr=deQuien().filter(function(t){
     if(S.fltDrop&&t.drop!==S.fltDrop)return false;
     if(S.fltEst==='pend'&&t.done)return false;
     if(S.fltEst==='done'&&!t.done)return false;
     if(S.fltEst==='late'&&!esVencida(t))return false;
     return true;
   });
-  if(!arr.length)return h+'<div class="empty">No hay tareas tuyas con esos filtros.</div>';
+  if(!arr.length)return h+'<div class="empty">No hay tareas '+(otro?'de '+esc(nombreLista()):'tuyas')+' con esos filtros.</div>';
 
   var g={},orden=[];
   arr.forEach(function(t){var k=t.do||'sin';if(!g[k]){g[k]=[];orden.push(k);}g[k].push(t);});
@@ -765,17 +769,13 @@ function pintarDrawer(){
     var venc=v.filter(esVencida).length;
     var pend=v.filter(function(x){return !x.done;}).length;
     var hoy=v.filter(function(x){return !x.done&&x.do<=t&&!esVencida(x);}).length;
-    var ab=S.openP[n||'_']===true,nom=n===''?'SIN ASIGNAR':n;
-    var h='<div class="pcard'+(n===S.me?' me':'')+'"><button data-p="'+esc(n)+'">'+
+    var nom=n===''?'SIN ASIGNAR':n;
+    return'<div class="pcard'+(n===S.me?' me':'')+'"><button data-p="'+esc(n)+'">'+
       '<span class="av">'+esc(ini2(nom))+'</span>'+
       '<span class="nm">'+esc(nom)+(n===S.me?' · vos':'')+
         '<small>'+(pend?pend+' pendiente'+(pend>1?'s':''):'Sin pendientes')+(hoy?' · '+hoy+' hoy':'')+'</small></span>'+
-      (venc?'<span class="pill bad">'+venc+'</span>':'<span class="pill">'+pend+'</span>')+'</button>';
-    if(ab){
-      var op=v.filter(function(x){return !x.done;}).sort(function(a,b){return (a.do||'9')<(b.do||'9')?-1:1;});
-      h+='<div class="in">'+(op.length?op.map(htmlRO).join(''):'<div class="empty" style="padding:14px 0;font-size:11px">Sin pendientes.</div>')+'</div>';
-    }
-    return h+'</div>';
+      (venc?'<span class="pill bad">'+venc+'</span>':'<span class="pill">'+pend+'</span>')+
+      '<span class="ir">›</span></button></div>';
   }).join('');
 }
 function abrirDrawer(){
@@ -1043,7 +1043,7 @@ function modalTarea(t){
   document.getElementById('fDo').value=t?(t.do||TODAY()):TODAY();
   document.getElementById('fDue').value=t?(t.due||''):'';
   document.getElementById('fDrop').value=t?(t.drop||''):'';
-  chipsWho(t?(whos(t).length?whos(t):[S.me]):[S.me]);
+  chipsWho(t?(whos(t).length?whos(t):[S.me]):(S.viendo===''?[]:[verA()]));
   document.getElementById('delTask').style.display=t?'block':'none';
   abrir('ovTask');
 }
@@ -1060,9 +1060,9 @@ function guardarTarea(){
     S.tasks.push({id:uid(),title:tx,desc:ds,who:S.fWhos.slice(),do:doD,due:due,drop:drop,done:false,doneAt:null,pushed:0,creada:TODAY()});
     S.fltDrop='';S.fltEst='pend';S.collapsed[doD]=false;
     /* si no te tocó a vos, mostrá dónde cayó */
-    if(S.fWhos.indexOf(S.me)<0&&S.fWhos.length){
-      S.eqOpen=true;S.fWhos.forEach(function(n){S.openP[n]=true;});
-      save();cerrar('ovTask');abrirDrawer();render();return;
+    /* si no te tocó a vos, te llevo a la lista de quien la va a hacer */
+    if(S.fWhos.indexOf(S.me)<0&&S.fWhos.length&&S.fWhos.indexOf(verA())<0){
+      S.viendo=S.fWhos[0];setNav('todas');
     }
   }
   save();cerrar('ovTask');render();
@@ -1106,8 +1106,7 @@ function guardarDrop(){
     S.tasks.push({id:uid(),title:s.name,desc:'',who:s.who?[s.who]:[],do:ini,due:due,drop:nm,done:false,doneAt:null,pushed:0,creada:TODAY()});
   });
   save();cerrar('ovDrop');
-  S.fltDrop=nm;S.fltEst='pend';setNav('todas');render();
-  if(!propias){S.eqOpen=true;abrirDrawer();} /* si no te tocó nada, mostrá cómo quedó repartido */
+  S.fltDrop=nm;S.fltEst='pend';S.viendo=null;setNav('todas');render(); /* si no te tocó nada, mostrá cómo quedó repartido */
 }
 
 /* ----- gente ----- */
@@ -1175,14 +1174,22 @@ document.addEventListener('click',function(e){
   }
   if(e.target.closest('#dEq')){S.eqOpen=!S.eqOpen;pintarDrawer();return;}
   if(e.target.closest('#dPeople')){cerrarDrawer();pintarGente();abrir('ovTeam');return;}
-  if((el=e.target.closest('[data-p]'))){var k=el.dataset.p||'_';S.openP[k]=!S.openP[k];pintarDrawer();return;}
+  if((el=e.target.closest('[data-p]'))){
+    S.viendo=el.dataset.p||'';      /* '' = las que no tienen dueño */
+    cerrarDrawer();cerrarFilas(null);setNav('todas');render();window.scrollTo(0,0);return;
+  }
+  if(e.target.closest('#volverMia')){S.viendo=null;render();window.scrollTo(0,0);return;}
 
   if((el=e.target.closest('[data-me]'))){
-    S.me=el.dataset.me;save();cerrarDrawer();cerrar('ovTeam');setNav('hoy');render();window.scrollTo(0,0);return;
+    S.me=el.dataset.me;S.viendo=null;save();cerrarDrawer();cerrar('ovTeam');setNav('hoy');render();window.scrollTo(0,0);return;
   }
 
   if((el=e.target.closest('[data-close]'))){cerrar(el.dataset.close);return;}
-  if((el=e.target.closest('.tabbar button'))){cerrarFilas(null);setNav(el.dataset.v);render();window.scrollTo(0,0);return;}
+  if((el=e.target.closest('.tabbar button'))){
+    cerrarFilas(null);
+    if(el.dataset.v==='hoy')S.viendo=null;  /* Hoy es siempre tu día */
+    setNav(el.dataset.v);render();window.scrollTo(0,0);return;
+  }
   if(e.target.closest('#newTask')){modalTarea(null);return;}
   if(e.target.closest('#saveTask')){guardarTarea();return;}
   if(e.target.closest('#saveDrop')){guardarDrop();return;}
