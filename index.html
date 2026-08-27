@@ -53,6 +53,22 @@ input,textarea,select{font-size:16px} /* 16px = iOS no hace zoom al enfocar */
 }
 .whoGrid button:active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
 #login .foot{margin-top:26px;font-size:11px;color:var(--muted);text-align:center;line-height:1.6;max-width:300px}
+#paso1,#paso2{display:flex;flex-direction:column;align-items:center;width:100%}
+.claveBox{display:flex;gap:8px;width:100%;max-width:340px}
+.claveBox input{
+  flex:1;min-width:0;border:1px solid var(--border);border-radius:var(--r);
+  padding:12px 14px;min-height:50px;-webkit-appearance:none;text-align:center;letter-spacing:2px;
+}
+.claveBox input:focus{outline:none;border-color:var(--accent)}
+.claveBox button{
+  flex:0 0 auto;background:var(--accent);color:#fff;border-radius:var(--r);padding:0 20px;min-height:50px;
+  font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+}
+.claveBox button:active{opacity:.85}
+.claveBox button[disabled]{opacity:.5}
+.loginErr{margin-top:12px;font-size:12px;color:var(--alert);text-align:center;min-height:18px;max-width:300px}
+.otroUsr{margin-top:16px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:10px 14px;min-height:40px}
+.otroUsr:active{color:var(--accent)}
 
 /* ============ HEADER ============ */
 header{
@@ -256,15 +272,13 @@ main.wrap{padding-bottom:158px}
 .duser .n{flex:1;min-width:0}
 .duser .n b{display:block;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
 .duser .n small{font-size:10px;color:var(--muted);letter-spacing:.5px}
-.duser .sw{flex:0 0 auto;border:1px solid var(--border);border-radius:3px;padding:8px 10px;min-height:38px;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
-.duser .sw:active{border-color:var(--accent);color:var(--accent)}
-.switcher{display:none;flex-wrap:wrap;gap:7px;padding:13px 0;border-bottom:1px solid var(--border)}
-.switcher.on{display:flex}
-.switcher button{
-  border:1px solid var(--border);border-radius:var(--r);padding:9px 12px;min-height:40px;
-  font-size:11px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);
+.estado{
+  display:flex;align-items:center;gap:7px;padding:14px 0 12px;
+  font-size:10.5px;color:var(--muted);letter-spacing:.3px;
 }
-.switcher button.act{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.estado .luz{width:7px;height:7px;border-radius:50%;background:#7ac07a;flex:0 0 auto}
+.estado.mal .luz{background:var(--warn)}
+.estado .re{margin-left:auto;border:1px solid var(--border);border-radius:3px;padding:6px 9px;min-height:34px;font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
 .dlink{
   width:100%;display:flex;align-items:center;gap:10px;text-align:left;
   padding:15px 0;border-bottom:1px solid var(--border);min-height:52px;
@@ -407,9 +421,24 @@ main.wrap{padding-bottom:158px}
 <div id="login">
   <img src="https://acdn-us.mitiendanube.com/stores/001/708/518/themes/common/logo-6368644953230226171-1778266705-631e4e0496ffdabc5f328528caf8e87e1778266705-320-0.webp" alt="Shaka">
   <div class="sub">Tareas</div>
-  <h2>¿Quién sos?</h2>
-  <div class="whoGrid" id="whoGrid"></div>
-  <div class="foot">Elegí tu nombre y vas a ver solo tus tareas.<br>Lo del resto está en el menú de la izquierda.</div>
+
+  <div id="paso1">
+    <h2>¿Quién sos?</h2>
+    <div class="whoGrid" id="whoGrid"></div>
+  </div>
+
+  <div id="paso2" style="display:none">
+    <h2 id="holaVos">—</h2>
+    <div class="claveBox">
+      <input type="password" id="fClave" placeholder="Tu clave" autocomplete="current-password"
+             autocapitalize="off" autocorrect="off" enterkeyhint="go">
+      <button id="btnEntrar">Entrar</button>
+    </div>
+    <div class="loginErr" id="loginErr"></div>
+    <button class="otroUsr" id="otroUsr">No soy yo</button>
+  </div>
+
+  <div class="foot" id="loginFoot">Cada uno entra con su clave.<br>Si no la tenés, pedísela a Fede.</div>
 </div>
 
 <!-- ============ APP ============ -->
@@ -454,13 +483,12 @@ main.wrap{padding-bottom:158px}
     <div class="duser">
       <span class="av" id="dAv">—</span>
       <span class="n"><b id="dName">—</b><small>Estás viendo tus tareas</small></span>
-      <button class="sw" id="dSwitch">Cambiar</button>
     </div>
-    <div class="switcher" id="dSwitcher"></div>
     <button class="dlink" id="dDrop"><span class="ic">◈</span> Nuevo drop</button>
     <button class="dlink" id="dEq"><span class="ic">▣</span> Equipo <span class="cnt" id="dEqCnt"></span><span class="chev" id="dEqChev">▸</span></button>
     <div id="dTeam" class="eqbox"></div>
-    <button class="dlink" id="dPeople"><span class="ic">⊕</span> Administrar gente</button>
+    <div class="estado" id="dEstado"></div>
+    <button class="dlink" id="dSalir"><span class="ic">⏻</span> Salir</button>
   </div>
 </aside>
 
@@ -517,19 +545,6 @@ main.wrap{padding-bottom:158px}
   <button class="save" id="saveDrop">Crear tareas del drop</button>
 </div></div>
 
-<!-- MODAL GENTE -->
-<div class="ov" id="ovTeam"><div class="modal">
-  <div class="mh"><h3>Gente</h3><button data-close="ovTeam">Cerrar ✕</button></div>
-  <p class="hint">Con "Quitar" sacás a alguien de la lista; sus tareas no se borran, quedan sin asignar. Para entrar como otra persona, usá <b>Cambiar</b> arriba del menú.</p>
-  <div id="teamList"></div>
-  <div class="addrow"><input type="text" id="newMember" placeholder="Agregar nombre" autocapitalize="characters"><button id="addMember">Sumar</button></div>
-  <div style="margin-top:30px;border-top:1px solid var(--border);padding-top:16px">
-    <p class="hint">Versión de prueba: por ahora los datos se guardan en este teléfono, todavía no se comparten entre todos.</p>
-    <button class="del" id="seedBtn">Recargar tareas de ejemplo</button>
-    <button class="del" id="wipeBtn">Borrar todas las tareas</button>
-  </div>
-</div></div>
-
 <!-- HOJA DE ACCIONES -->
 <div id="sheet">
   <div class="bd" data-sheet-close></div>
@@ -553,17 +568,21 @@ var DEF_STAGES=[
   {name:'IMAGEN',before:4,dur:2,who:''},
   {name:'LANZAMIENTO',before:0,dur:1,who:''}
 ];
-var S={team:DEF_TEAM.slice(),tasks:[],me:null,view:'hoy',tip:true,
+var API='https://script.google.com/macros/s/AKfycbyAb0qkq-WBLvZAn_Mjgociomgpb5FcjoY3aPgxuQkARHXViNt7TeF1el0eflIU0dQk/exec';
+var S={team:DEF_TEAM.slice(),tasks:[],me:null,token:null,view:'hoy',tip:true,
        fWhos:[],fTask:null,stages:null,collapsed:{},viendo:null,sheetResp:false,
        fltDrop:'',fltEst:'pend',actId:null,detId:null,eqOpen:false};
 
-function save(){try{localStorage.setItem(KEY,JSON.stringify({team:S.team,tasks:S.tasks,me:S.me,tip:S.tip}));}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(
+  {team:S.team,tasks:S.tasks,me:S.me,token:S.token,tip:S.tip,pend:Object.keys(NET.pend)}));}catch(e){}}
 function load(){
   try{
     var d=JSON.parse(localStorage.getItem(KEY)||'null');
-    if(d&&d.tasks){
+    if(d){
       S.team=(d.team&&d.team.length)?d.team:DEF_TEAM.slice();
-      S.tasks=d.tasks;S.me=d.me||null;S.tip=d.tip!==false;return true;
+      S.tasks=d.tasks||[];S.me=d.me||null;S.token=d.token||null;S.tip=d.tip!==false;
+      (d.pend||[]).forEach(function(id){NET.pend[id]=true;}); /* lo que quedó sin subir */
+      return true;
     }
   }catch(e){}
   return false;
@@ -599,23 +618,24 @@ function whos(t){
   return (typeof t.who==='string')?[t.who]:t.who.slice();
 }
 function esDe(t,n){return whos(t).indexOf(n)>=0;}
-function mias(){return S.tasks.filter(function(t){return esDe(t,S.me);});}
+function mias(){return vivas().filter(function(t){return esDe(t,S.me);});}
 /* la segunda pestaña puede mostrar la lista de otro: S.viendo manda.
    null = la mía · '' = el cajón de las que no tienen dueño · 'NOMBRE' = la de esa persona */
 function verA(){return S.viendo===null?S.me:S.viendo;}
 function nombreLista(){return S.viendo===''?'sin asignar':verA();}
 function deQuien(){return S.viendo===null?mias():deOtro(S.viendo);}
 function deOtro(n){
-  return S.tasks.filter(function(t){
+  return vivas().filter(function(t){
     var w=whos(t);
     if(n==='')return !w.length||!w.some(function(x){return S.team.indexOf(x)>=0;});
     return w.indexOf(n)>=0;
   });
 }
 function nombresWho(t){var w=whos(t);return w.length?w.join(', '):'sin asignar';}
-function drops(){var o={},r=[];S.tasks.forEach(function(t){if(t.drop&&!o[t.drop]){o[t.drop]=1;r.push(t.drop);}});return r.sort();}
+function drops(){var o={},r=[];vivas().forEach(function(t){if(t.drop&&!o[t.drop]){o[t.drop]=1;r.push(t.drop);}});return r.sort();}
 function ini2(n){return String(n||'?').slice(0,2);}
 function find(id){for(var i=0;i<S.tasks.length;i++)if(S.tasks[i].id===id)return S.tasks[i];return null;}
+function vivas(){return S.tasks.filter(function(t){return !t.borrada;});}
 
 function tagDeadline(t){
   if(!t.due)return'';
@@ -650,11 +670,13 @@ function htmlTarea(t){
       '<div class="grip">‹‹</div>'+
     '</div></div>';
 }
-/* pendientes primero; lo tachado se va al fondo y queda tachado */
+/* pendientes primero; lo tachado se va al fondo y queda tachado.
+   Dentro de cada grupo mandan los "ord", que se guardan en la planilla. */
+function porOrd(a,b){return (Number(a.ord)||0)-(Number(b.ord)||0);}
 function ordenar(a){
   var p=[],h=[];
   a.forEach(function(t){(t.done?h:p).push(t);});
-  return p.concat(h);
+  return p.sort(porOrd).concat(h.sort(porOrd));
 }
 function lista(a,vacio){
   if(!a.length)return'<div class="empty">'+vacio+'</div>';
@@ -733,7 +755,7 @@ function vistaTodas(){
 }
 
 function render(){
-  if(!S.me){document.getElementById('login').style.display='flex';pintarLogin();return;}
+  if(!S.me||!S.token){document.getElementById('login').style.display='flex';pintarLogin();return;}
   document.getElementById('login').style.display='none';
   var venc=mias().filter(esVencida).length;
   document.getElementById('pip').className='pip'+(venc?' on':'');
@@ -741,12 +763,27 @@ function render(){
     (S.view==='hoy'?vistaHoy():vistaTodas())+
     '<div class="foot">SHAKA CMMNTY® · TAREAS · VERSIÓN DE PRUEBA</div>';
   document.getElementById('dropList').innerHTML=drops().map(function(d){return'<option value="'+esc(d)+'">';}).join('');
-  pintarDrawer();
+  pintarDrawer();pintarEstado();
 }
 function pintarLogin(){
   document.getElementById('whoGrid').innerHTML=S.team.map(function(m){
     return'<button data-login="'+esc(m)+'">'+esc(m)+'</button>';
   }).join('');
+  paso(1);
+  /* la lista de gente la manda la planilla, por si sumaron o sacaron a alguien */
+  api('gente').then(function(r){
+    if(r.ok&&r.gente&&r.gente.length){
+      S.team=r.gente;save();
+      document.getElementById('whoGrid').innerHTML=S.team.map(function(m){
+        return'<button data-login="'+esc(m)+'">'+esc(m)+'</button>';
+      }).join('');
+    }
+  })['catch'](function(){});
+}
+function paso(n){
+  document.getElementById('paso1').style.display=n===1?'flex':'none';
+  document.getElementById('paso2').style.display=n===2?'flex':'none';
+  document.getElementById('loginFoot').style.display=n===1?'block':'none';
 }
 
 /* ===================== panel lateral ===================== */
@@ -754,12 +791,9 @@ function pintarDrawer(){
   if(!S.me)return;
   document.getElementById('dAv').textContent=ini2(S.me);
   document.getElementById('dName').textContent=S.me;
-  document.getElementById('dSwitcher').innerHTML=S.team.map(function(m){
-    return'<button class="'+(m===S.me?'act':'')+'" data-me="'+esc(m)+'">'+esc(m)+'</button>';
-  }).join('');
   var t=TODAY(),gente=S.team.slice(),huerf=deOtro('');
   if(huerf.length)gente.push('');
-  var vencEq=S.tasks.filter(function(x){return esVencida(x)&&!esDe(x,S.me);}).length;
+  var vencEq=vivas().filter(function(x){return esVencida(x)&&!esDe(x,S.me);}).length;
   document.getElementById('dEqCnt').textContent=vencEq?vencEq+(vencEq>1?' vencidas':' vencida'):(S.team.length+' personas');
   document.getElementById('dEqChev').className='chev'+(S.eqOpen?' open':'');
   document.getElementById('dTeam').className='eqbox'+(S.eqOpen?' on':'');
@@ -787,27 +821,26 @@ function abrirDrawer(){
 function cerrarDrawer(){
   document.getElementById('drawer').classList.remove('on');
   document.getElementById('scrim').classList.remove('on');
-  document.getElementById('dSwitcher').classList.remove('on');
   document.body.style.overflow='';
 }
 
 /* ===================== acciones ===================== */
-function toggle(id){var t=find(id);if(!t)return;t.done=!t.done;t.doneAt=t.done?TODAY():null;save();render();}
+function toggle(id){var t=find(id);if(!t)return;t.done=!t.done;t.doneAt=t.done?TODAY():null;tocar(t);render();}
 function mover(id,fecha){
   var t=find(id);if(!t)return;
   if(fecha>t.do&&!t.done)t.pushed=(t.pushed||0)+1;
-  t.do=fecha;save();render();
+  t.do=fecha;tocar(t);render();
 }
 function borrar(id){
   var t=find(id);if(!t)return;
   if(!confirm('¿Eliminar "'+t.title+'"?'))return;
-  S.tasks=S.tasks.filter(function(x){return x.id!==id;});save();render();
+  t.borrada=true;tocar(t);render(); /* se marca borrada para que desaparezca en todos los teléfonos */
 }
 function toggleResp(id,quien){
   var t=find(id);if(!t)return;
   var w=whos(t),i=w.indexOf(quien);
   if(i>=0)w.splice(i,1); else w.push(quien);
-  t.who=w;save();
+  t.who=w;tocar(t);
   document.getElementById('sheetOpts').innerHTML=opcionesResp(t); /* la hoja queda abierta */
 }
 
@@ -925,16 +958,138 @@ function drSoltar(){
   document.body.classList.remove('dragging');
   DR.activo=false;DR.row=null;DR.cont=null;
   if(movio){
-    /* el orden en pantalla manda: reacomodamos esas tareas en S.tasks
-       ocupando los mismos lugares que tenían */
+    /* el orden en pantalla manda: repartimos los mismos "ord" del grupo
+       en el orden nuevo, así el cambio viaja a los demás teléfonos */
     var ids=filasDe(cont).map(function(e){return e.dataset.id;});
-    var idx=[],obj={};
-    S.tasks.forEach(function(t,i){if(ids.indexOf(t.id)>=0){idx.push(i);obj[t.id]=t;}});
-    idx.sort(function(a,b){return a-b;});
-    ids.forEach(function(id,k){if(idx[k]!==undefined)S.tasks[idx[k]]=obj[id];});
-    save();render();
+    var ts=ids.map(find).filter(Boolean);
+    var nums=ts.map(function(t){return Number(t.ord)||0;}).sort(function(a,b){return a-b;});
+    ts.forEach(function(t,k){
+      if(t.ord!==nums[k]){t.ord=nums[k];tocar(t);}
+    });
+    render();
     DR.movio=true;setTimeout(function(){DR.movio=false;},80);
   }else DR.movio=false;
+}
+
+/* ===================== sincronización con la planilla =====================
+   Cada teléfono trabaja con su copia y la va poniendo al día con Google.
+   Si no hay señal, se sigue usando igual y los cambios suben después. */
+var NET={pend:{},tim:null,ocupado:false,ok:true,ultima:0,poll:null};
+
+function api(accion,datos){
+  datos=datos||{};datos.accion=accion;
+  if(S.token)datos.token=S.token;
+  return fetch(API,{method:'POST',body:JSON.stringify(datos),
+      headers:{'Content-Type':'text/plain;charset=utf-8'}})
+    .then(function(r){return r.json();});
+}
+function ahora(){return new Date().getTime();}
+
+/* marca una tarea como cambiada y programa la subida */
+function tocar(t){
+  if(!t)return;
+  t.actualizada=ahora();
+  NET.pend[t.id]=true;
+  save();
+  programarPush();
+}
+function programarPush(){
+  if(NET.tim)clearTimeout(NET.tim);
+  NET.tim=setTimeout(subir,700);
+}
+function subir(){
+  if(NET.ocupado||!S.token)return;
+  var ids=Object.keys(NET.pend);
+  if(!ids.length)return;
+  var cambios=ids.map(find).filter(Boolean);
+  if(!cambios.length){NET.pend={};return;}
+  NET.ocupado=true;pintarEstado('subiendo');
+  api('push',{cambios:cambios}).then(function(r){
+    NET.ocupado=false;
+    if(!r.ok)return fallo(r.error);
+    cambios.forEach(function(t){delete NET.pend[t.id];});
+    fusionar(r.tareas);
+    NET.ok=true;NET.ultima=ahora();save();render();
+  })['catch'](function(){NET.ocupado=false;fallo();});
+}
+function bajar(silencioso){
+  if(!S.token)return;
+  if(!silencioso)pintarEstado('bajando');
+  api('pull').then(function(r){
+    if(!r.ok)return fallo(r.error);
+    if(r.gente&&r.gente.length)S.team=r.gente;
+    fusionar(r.tareas);
+    NET.ok=true;NET.ultima=ahora();save();render();
+  })['catch'](function(){fallo();});
+}
+/* lo que viene del servidor manda, salvo lo que todavía no llegamos a subir */
+function fusionar(remotas){
+  if(!remotas)return;
+  var mios={};
+  Object.keys(NET.pend).forEach(function(id){
+    var t=find(id);if(t)mios[id]=t;
+  });
+  S.tasks=remotas.map(function(t){return mios[t.id]||t;});
+  Object.keys(mios).forEach(function(id){
+    if(!S.tasks.some(function(t){return t.id===id;}))S.tasks.push(mios[id]);
+  });
+}
+function fallo(msg){
+  NET.ok=false;pintarEstado();
+  if(msg&&/Sesión vencida/i.test(msg)) salir();
+}
+function pintarEstado(estado){
+  var el=document.getElementById('dEstado');
+  if(!el)return;
+  var txt,mal=false;
+  if(estado==='subiendo')txt='Guardando…';
+  else if(estado==='bajando')txt='Actualizando…';
+  else if(!NET.ok){txt='Sin conexión — se guarda igual';mal=true;}
+  else if(Object.keys(NET.pend).length){txt='Falta subir '+Object.keys(NET.pend).length;mal=true;}
+  else if(NET.ultima)txt='Al día · '+hora(NET.ultima);
+  else txt='Al día';
+  el.className='estado'+(mal?' mal':'');
+  el.innerHTML='<span class="luz"></span><span>'+txt+'</span><button class="re" id="dRefrescar">Actualizar</button>';
+}
+function hora(ms){
+  var d=new Date(ms);
+  return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+}
+function arrancarPoll(){
+  if(NET.poll)clearInterval(NET.poll);
+  /* 45s y solo con la app a la vista: Google limita cuánto puede correr el
+     script por día, y al volver a primer plano ya se actualiza igual */
+  NET.poll=setInterval(function(){
+    if(document.hidden)return;
+    if(Object.keys(NET.pend).length)subir(); else bajar(true);
+  },45000);
+}
+document.addEventListener('visibilitychange',function(){
+  if(!document.hidden&&S.token){ if(Object.keys(NET.pend).length)subir(); else bajar(true); }
+});
+
+/* ===================== entrar y salir ===================== */
+function entrar(nombre,clave){
+  var err=document.getElementById('loginErr'),btn=document.getElementById('btnEntrar');
+  err.textContent='';btn.disabled=true;btn.textContent='...';
+  api('login',{nombre:nombre,clave:clave}).then(function(r){
+    btn.disabled=false;btn.textContent='Entrar';
+    if(!r.ok){err.textContent=r.error||'No pudimos entrar.';return;}
+    S.me=r.nombre;S.token=r.token;
+    if(r.gente&&r.gente.length)S.team=r.gente;
+    fusionar(r.tareas);
+    NET.ok=true;NET.ultima=ahora();save();
+    document.getElementById('fClave').value='';
+    setNav('hoy');render();arrancarPoll();
+  })['catch'](function(){
+    btn.disabled=false;btn.textContent='Entrar';
+    err.textContent='No hay conexión con la planilla. Probá de nuevo.';
+  });
+}
+function salir(){
+  S.token=null;S.me=null;S.viendo=null;S.tasks=[];NET.pend={};
+  if(NET.poll)clearInterval(NET.poll);
+  save();cerrarDrawer();render();
 }
 
 /* ===================== deslizar ===================== */
@@ -1055,9 +1210,11 @@ function guardarTarea(){
   var due=document.getElementById('fDue').value||'';
   var drop=document.getElementById('fDrop').value.trim().toUpperCase();
   if(S.fTask){
-    var t=find(S.fTask);t.title=tx;t.desc=ds;t.who=S.fWhos.slice();t.do=doD;t.due=due;t.drop=drop;
+    var t=find(S.fTask);t.title=tx;t.desc=ds;t.who=S.fWhos.slice();t.do=doD;t.due=due;t.drop=drop;tocar(t);
   }else{
-    S.tasks.push({id:uid(),title:tx,desc:ds,who:S.fWhos.slice(),do:doD,due:due,drop:drop,done:false,doneAt:null,pushed:0,creada:TODAY()});
+    var nueva={id:uid(),title:tx,desc:ds,who:S.fWhos.slice(),do:doD,due:due,drop:drop,
+               done:false,doneAt:null,pushed:0,ord:ahora(),borrada:false};
+    S.tasks.push(nueva);tocar(nueva);
     S.fltDrop='';S.fltEst='pend';S.collapsed[doD]=false;
     /* si no te tocó a vos, mostrá dónde cayó */
     /* si no te tocó a vos, te llevo a la lista de quien la va a hacer */
@@ -1100,44 +1257,15 @@ function guardarDrop(){
   if(!nm){document.getElementById('dropName').focus();return;}
   if(!f){document.getElementById('dropDate').focus();return;}
   var propias=0;
-  S.stages.forEach(function(s){
+  S.stages.forEach(function(s,k){
     var due=addD(f,-Math.abs(+s.before||0)),ini=addD(due,-Math.abs(+s.dur||1));
     if(s.who===S.me)propias++;
-    S.tasks.push({id:uid(),title:s.name,desc:'',who:s.who?[s.who]:[],do:ini,due:due,drop:nm,done:false,doneAt:null,pushed:0,creada:TODAY()});
+    var nt={id:uid(),title:s.name,desc:'',who:s.who?[s.who]:[],do:ini,due:due,drop:nm,
+            done:false,doneAt:null,pushed:0,ord:ahora()+k,borrada:false};
+    S.tasks.push(nt);tocar(nt);
   });
   save();cerrar('ovDrop');
   S.fltDrop=nm;S.fltEst='pend';S.viendo=null;setNav('todas');render(); /* si no te tocó nada, mostrá cómo quedó repartido */
-}
-
-/* ----- gente ----- */
-function pintarGente(){
-  document.getElementById('teamList').innerHTML=S.team.map(function(m){
-    return'<div class="member"><span class="who'+(m===S.me?' act':'')+'">'+esc(m)+(m===S.me?' · vos':'')+'</span>'+
-      '<button class="rm" data-rm="'+esc(m)+'">Quitar</button></div>';
-  }).join('');
-}
-
-/* ===================== ejemplo ===================== */
-function seed(){
-  var t=TODAY();
-  S.tasks=[
-    {id:uid(),title:'Cerrar la selección de telas',desc:'Definir con el proveedor las tres telas del drop. Faltan los precios por metro del frisa y confirmar si llegan los colores que pedimos.',who:['AXEL'],do:addD(t,-3),due:addD(t,-1),drop:'DROP PILCHA',done:false,pushed:3},
-    {id:uid(),title:'Pedir presupuesto de estampa',desc:'A los dos talleres, por las 400 unidades. Pedir precio con y sin base blanca.',who:['MATE'],do:t,due:addD(t,2),drop:'DROP PILCHA',done:false,pushed:0},
-    {id:uid(),title:'Armar el brief de fotos',desc:'Referencias de locación, looks y cantidad de fotos por producto para pasarle al fotógrafo.',who:['MILI'],do:t,due:addD(t,5),drop:'DROP PILCHA',done:false,pushed:0},
-    {id:uid(),title:'Responder los mayoristas pendientes',desc:'Quedaron cuatro consultas sin contestar de la semana pasada.',who:['MARTU'],do:t,due:t,drop:'',done:false,pushed:0},
-    {id:uid(),title:'Actualizar stock de la tienda',desc:'Después del sale quedaron diferencias en talles. Revisar contra el depósito antes de publicar.',who:['TOMI'],do:t,due:addD(t,1),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Pasarle a Fede los vencimientos de septiembre',desc:'',who:['AXEL'],do:t,due:addD(t,3),drop:'',done:false,pushed:1},
-    {id:uid(),title:'Revisar el reporte de ventas de la semana',desc:'',who:['FEDE'],do:t,due:addD(t,1),drop:'',done:true,pushed:0},
-    {id:uid(),title:'Mandarle a Axel el resumen de caja de agosto',desc:'',who:['FEDE'],do:t,due:addD(t,2),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Sacar los talles quebrados del cupón',desc:'Los que se agotan solos no necesitan descuento. Dejar el cupón para el stock lento.',who:['TOMI'],do:addD(t,1),due:addD(t,4),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Definir el casting para la campaña',desc:'Dos perfiles, ver disponibilidad para la semana del shooting.',who:['MILI'],do:addD(t,2),due:addD(t,6),drop:'DROP PILCHA',done:false,pushed:0},
-    {id:uid(),title:'Reunión de equipo',desc:'Repasar el calendario de drops y repartir lo que quedó suelto.',who:['AXEL','FEDE','MATE'],do:addD(t,3),due:addD(t,3),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Preparar el shooting del drop',desc:'Locación, ropa planchada y lista de looks. Lo arman entre los dos.',who:['MILI','MARTU'],do:t,due:addD(t,2),drop:'DROP PILCHA',done:false,pushed:0},
-    {id:uid(),title:'Cargar las fichas técnicas nuevas',desc:'',who:['MATE'],do:addD(t,5),due:addD(t,9),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Cerrar la lista de precios mayorista',desc:'Actualizar septiembre con el ajuste que definimos.',who:['FEDE'],do:addD(t,6),due:addD(t,10),drop:'',done:false,pushed:0},
-    {id:uid(),title:'Pedir las muestras de cierres',desc:'Al proveedor nuevo, para comparar con los que veníamos usando.',who:['MARTU'],do:addD(t,-2),due:addD(t,-1),drop:'DROP PILCHA',done:false,pushed:2}
-  ].map(function(x){x.doneAt=x.done?t:null;x.creada=t;return x;});
-  save();
 }
 
 /* ===================== eventos ===================== */
@@ -1148,7 +1276,19 @@ document.addEventListener('click',function(e){
   if(SW.movio){SW.movio=false;e.preventDefault();e.stopPropagation();return;}
   if(DR.movio||DR.activo){e.preventDefault();e.stopPropagation();return;}
 
-  if((el=e.target.closest('[data-login]'))){S.me=el.dataset.login;save();setNav('hoy');render();return;}
+  if((el=e.target.closest('[data-login]'))){
+    S.loginNombre=el.dataset.login;
+    document.getElementById('holaVos').textContent='Hola, '+S.loginNombre;
+    document.getElementById('loginErr').textContent='';
+    paso(2);setTimeout(function(){document.getElementById('fClave').focus();},120);
+    return;
+  }
+  if(e.target.closest('#otroUsr')){document.getElementById('fClave').value='';paso(1);return;}
+  if(e.target.closest('#btnEntrar')){
+    entrar(S.loginNombre,document.getElementById('fClave').value.trim());return;
+  }
+  if(e.target.closest('#dSalir')){if(confirm('¿Salir de tu usuario?'))salir();return;}
+  if(e.target.closest('#dRefrescar')){bajar();return;}
 
   /* hoja de acciones */
   if(e.target.closest('[data-sheet-close]')){cerrarSheet();return;}
@@ -1164,7 +1304,7 @@ document.addEventListener('click',function(e){
   /* panel lateral */
   if(e.target.closest('#burger')){abrirDrawer();return;}
   if(e.target.closest('#dClose')||e.target.id==='scrim'){cerrarDrawer();return;}
-  if(e.target.closest('#dSwitch')){document.getElementById('dSwitcher').classList.toggle('on');return;}
+
   if(e.target.closest('#dDrop')){
     cerrarDrawer();
     if(!S.stages)S.stages=JSON.parse(JSON.stringify(DEF_STAGES));
@@ -1173,16 +1313,13 @@ document.addEventListener('click',function(e){
     pintarStages();abrir('ovDrop');return;
   }
   if(e.target.closest('#dEq')){S.eqOpen=!S.eqOpen;pintarDrawer();return;}
-  if(e.target.closest('#dPeople')){cerrarDrawer();pintarGente();abrir('ovTeam');return;}
+
   if((el=e.target.closest('[data-p]'))){
     S.viendo=el.dataset.p||'';      /* '' = las que no tienen dueño */
     cerrarDrawer();cerrarFilas(null);setNav('todas');render();window.scrollTo(0,0);return;
   }
   if(e.target.closest('#volverMia')){S.viendo=null;render();window.scrollTo(0,0);return;}
 
-  if((el=e.target.closest('[data-me]'))){
-    S.me=el.dataset.me;S.viendo=null;save();cerrarDrawer();cerrar('ovTeam');setNav('hoy');render();window.scrollTo(0,0);return;
-  }
 
   if((el=e.target.closest('[data-close]'))){cerrar(el.dataset.close);return;}
   if((el=e.target.closest('.tabbar button'))){
@@ -1214,20 +1351,7 @@ document.addEventListener('click',function(e){
   if((el=e.target.closest('[data-x]'))){S.stages.splice(+el.dataset.x,1);pintarStages();return;}
   if(e.target.closest('#addStage')){S.stages.push({name:'NUEVA ETAPA',before:30,dur:7,who:''});pintarStages();return;}
   if(e.target.closest('#resetStages')){S.stages=JSON.parse(JSON.stringify(DEF_STAGES));pintarStages();return;}
-  if((el=e.target.closest('[data-rm]'))){
-    var m=el.dataset.rm;
-    if(S.team.length<=1)return;
-    S.team=S.team.filter(function(x){return x!==m;});
-    if(S.me===m)S.me=S.team[0];
-    save();pintarGente();render();return;
-  }
-  if(e.target.closest('#addMember')){
-    var i=document.getElementById('newMember'),val=i.value.trim().toUpperCase();
-    if(val&&S.team.indexOf(val)<0){S.team.push(val);i.value='';save();pintarGente();render();}
-    return;
-  }
-  if(e.target.closest('#seedBtn')){if(confirm('Reemplaza las tareas por las de ejemplo. ¿Seguir?')){seed();cerrar('ovTeam');render();}return;}
-  if(e.target.closest('#wipeBtn')){if(confirm('Borra TODAS las tareas. ¿Seguir?')){S.tasks=[];save();cerrar('ovTeam');render();}return;}
+
   if((el=e.target.closest('[data-day]'))){S.collapsed[el.dataset.day]=!S.collapsed[el.dataset.day];render();return;}
 
   /* acciones de una tarea */
@@ -1273,13 +1397,13 @@ document.addEventListener('keydown',function(e){
     var o=document.querySelectorAll('.ov.on');for(var i=0;i<o.length;i++)cerrar(o[i].id);
     cerrarFilas(null);
   }
-  if(e.key==='Enter'&&e.target.id==='newMember')document.getElementById('addMember').click();
+  if(e.key==='Enter'&&e.target.id==='fClave')document.getElementById('btnEntrar').click();
 });
 
 /* ===================== arranque ===================== */
-if(!load())seed();
-pintarLogin();
+load();
 render();
+if(S.token){bajar();arrancarPoll();}
 </script>
 </body>
 </html>
