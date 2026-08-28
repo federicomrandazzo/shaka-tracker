@@ -70,6 +70,11 @@ function preparar(){
     t.getRange(1,1,1,COLS.length).setFontWeight('bold');
     t.setFrozenRows(1);
   }
+  // dia, vence y hechaEl como texto: si no, Sheets las convierte en fechas
+  // con formato local y la app las recibe ilegibles
+  t.getRange(1, 5, t.getMaxRows(), 1).setNumberFormat('@');
+  t.getRange(1, 6, t.getMaxRows(), 1).setNumberFormat('@');
+  t.getRange(1, 8, t.getMaxRows(), 1).setNumberFormat('@');
   return 'Listo: hojas "usuarios", "tareas" y "accesos" preparadas.';
 }
 
@@ -79,6 +84,15 @@ function hash_(txt){
   return b.map(function(x){ return ('0'+(x & 0xFF).toString(16)).slice(-2); }).join('');
 }
 function token_(nombre, clave){ return hash_(nombre + '|' + clave + '|' + SECRETO); }
+
+/** Las fechas viajan como texto "2026-08-30". Si la planilla las guardo
+    como fecha de verdad, aca vuelven a texto para que la app las entienda. */
+function fecha_(v){
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  return String(v == null ? '' : v).trim();
+}
 
 function hojaU_(){ return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_U); }
 function hojaA_(){ return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_A); }
@@ -137,10 +151,10 @@ function leerTareas_(){
       title:     String(f[1]),
       desc:      String(f[2]),
       who:       String(f[3]) ? String(f[3]).split('|').filter(String) : [],
-      do:        String(f[4]),
-      due:       String(f[5]),
+      do:        fecha_(f[4]),
+      due:       fecha_(f[5]),
       done:      String(f[6]) === 'si',
-      doneAt:    String(f[7]) || null,
+      doneAt:    fecha_(f[7]) || null,
       pushed:    Number(f[8]) || 0,
       drop:      String(f[9]),
       ord:       Number(f[10]) || 0,

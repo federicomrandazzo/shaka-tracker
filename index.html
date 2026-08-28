@@ -603,6 +603,18 @@ function load(){
 
 /* ===================== fechas ===================== */
 function iso(d){var m=d.getMonth()+1,dd=d.getDate();return d.getFullYear()+'-'+(m<10?'0':'')+m+'-'+(dd<10?'0':'')+dd;}
+/* Google Sheets a veces devuelve las fechas como objeto Date, que llega
+   convertido en un texto largo tipo "Sat Aug 30 2026...". Esto lo lleva
+   siempre a 2026-08-30, y descarta lo que no sea una fecha de verdad. */
+function normFecha(v){
+  if(v==null)return '';
+  var s=String(v).trim();
+  if(!s)return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  var d=new Date(s);
+  return isNaN(d.getTime())?'':iso(d);
+}
+function fechaOk(s){return /^\d{4}-\d{2}-\d{2}$/.test(String(s||''));}
 function parse(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
 function today(){var n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate());}
 function TODAY(){return iso(today());}
@@ -610,8 +622,14 @@ function addD(s,n){var d=parse(s);d.setDate(d.getDate()+n);return iso(d);}
 function diff(a,b){return Math.round((parse(a)-parse(b))/86400000);}
 var DIAS=['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'];
 var MES=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-function fmt(s){var d=parse(s);return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();}
-function fmtCorto(s){var d=parse(s);return ('0'+d.getDate()).slice(-2)+' '+MES[d.getMonth()];}
+function fmt(s){
+  if(!fechaOk(s))return 'sin fecha';
+  var d=parse(s);return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
+}
+function fmtCorto(s){
+  if(!fechaOk(s))return 'sin fecha';
+  var d=parse(s);return ('0'+d.getDate()).slice(-2)+' '+MES[d.getMonth()];
+}
 function nombreDia(s){
   var t=TODAY();
   if(s===t)return'HOY';
@@ -622,7 +640,7 @@ function nombreDia(s){
 
 /* ===================== tareas ===================== */
 function uid(){return 't'+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);}
-function esVencida(t){return !t.done&&t.due&&diff(t.due,TODAY())<0;}
+function esVencida(t){return !t.done&&fechaOk(t.due)&&diff(t.due,TODAY())<0;}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 /* una tarea puede tener varios responsables. Guardamos un array en t.who,
    pero las tareas viejas traen un string: whos() normaliza siempre a lista. */
@@ -656,7 +674,7 @@ function find(id){for(var i=0;i<S.tasks.length;i++)if(S.tasks[i].id===id)return 
 function vivas(){return S.tasks.filter(function(t){return !t.borrada;});}
 
 function tagDeadline(t){
-  if(!t.due)return'';
+  if(!fechaOk(t.due))return'';
   var n=diff(t.due,TODAY());
   if(t.done)return'<span class="tag">vencía '+fmtCorto(t.due)+'</span>';
   if(n<0)return'<span class="tag late">Vencida hace '+Math.abs(n)+(Math.abs(n)===1?' día':' días')+'</span>';
@@ -926,7 +944,7 @@ function verTarea(id){
         ? whos(t).map(function(n){return'<span class="tag who">'+esc(n)+'</span>';}).join('')
         : '<span class="tag">Sin asignar</span>';
   m+='<span class="tag">La hago el '+fmt(t.do)+'</span>';
-  m+=t.due?tagDeadline(t):'<span class="tag">Sin deadline</span>';
+  m+=fechaOk(t.due)?tagDeadline(t):'<span class="tag">Sin deadline</span>';
   if(t.drop)m+='<span class="tag drop">'+esc(t.drop)+'</span>';
   if(t.done)m+='<span class="tag">Hecha</span>';
   document.getElementById('detMeta').innerHTML=m;
@@ -1094,6 +1112,11 @@ function bajar(silencioso){
 /* lo que viene del servidor manda, salvo lo que todavía no llegamos a subir */
 function fusionar(remotas){
   if(!remotas)return;
+  remotas.forEach(function(t){
+    t.do=normFecha(t.do)||TODAY();
+    t.due=normFecha(t.due);
+    t.doneAt=normFecha(t.doneAt)||null;
+  });
   var mios={};
   Object.keys(NET.pend).forEach(function(id){
     var t=find(id);if(t)mios[id]=t;
