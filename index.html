@@ -54,6 +54,13 @@ input,textarea,select{font-size:16px} /* 16px = iOS no hace zoom al enfocar */
 .whoGrid button:active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
 #login .foot{margin-top:26px;font-size:11px;color:var(--muted);text-align:center;line-height:1.6;max-width:300px}
 #paso1,#paso2{display:flex;flex-direction:column;align-items:center;width:100%}
+.usrInput{
+  width:100%;max-width:340px;margin-bottom:10px;
+  border:1px solid var(--border);border-radius:var(--r);
+  padding:12px 14px;min-height:50px;-webkit-appearance:none;
+  text-align:center;letter-spacing:2px;text-transform:uppercase;
+}
+.usrInput:focus{outline:none;border-color:var(--accent)}
 .claveBox{display:flex;gap:8px;width:100%;max-width:340px}
 .claveBox input{
   flex:1;min-width:0;border:1px solid var(--border);border-radius:var(--r);
@@ -420,7 +427,7 @@ a.dlink{text-decoration:none;color:inherit}
 
 <!-- ============ LOGIN ============ -->
 <div id="login">
-  <img src="https://acdn-us.mitiendanube.com/stores/001/708/518/themes/common/logo-6368644953230226171-1778266705-631e4e0496ffdabc5f328528caf8e87e1778266705-320-0.webp" alt="Shaka">
+  <img id="logoLogin" src="https://acdn-us.mitiendanube.com/stores/001/708/518/themes/common/logo-6368644953230226171-1778266705-631e4e0496ffdabc5f328528caf8e87e1778266705-320-0.webp" alt="Shaka">
   <div class="sub">Tareas</div>
 
   <div id="paso1">
@@ -430,6 +437,8 @@ a.dlink{text-decoration:none;color:inherit}
 
   <div id="paso2" style="display:none">
     <h2 id="holaVos">—</h2>
+    <input type="text" id="fUsuario" class="usrInput" placeholder="Tu usuario"
+           autocapitalize="characters" autocorrect="off" style="display:none">
     <div class="claveBox">
       <input type="password" id="fClave" placeholder="Tu clave" autocomplete="current-password"
              autocapitalize="off" autocorrect="off" enterkeyhint="go">
@@ -573,7 +582,7 @@ var DEF_STAGES=[
 ];
 var API='https://script.google.com/macros/s/AKfycbyAb0qkq-WBLvZAn_Mjgociomgpb5FcjoY3aPgxuQkARHXViNt7TeF1el0eflIU0dQk/exec';
 var S={team:DEF_TEAM.slice(),tasks:[],me:null,token:null,nolog:false,oculto:false,view:'hoy',tip:true,
-       fWhos:[],fTask:null,stages:null,collapsed:{},viendo:null,sheetResp:false,
+       fWhos:[],fTask:null,stages:null,collapsed:{},viendo:null,sheetResp:false,manual:false,
        fltDrop:'',fltEst:'pend',actId:null,detId:null,eqOpen:false};
 
 function save(){try{localStorage.setItem(KEY,JSON.stringify(
@@ -785,13 +794,17 @@ function render(){
   document.getElementById('dropList').innerHTML=drops().map(function(d){return'<option value="'+esc(d)+'">';}).join('');
   pintarDrawer();pintarEstado();
 }
-function pintarLogin(){
+function pintarLoginGrilla(){
   document.getElementById('whoGrid').innerHTML=S.team.map(function(m){
     return'<button data-login="'+esc(m)+'">'+esc(m)+'</button>';
   }).join('');
-  var priv=usuarioDelLink();
+}
+function pintarLogin(){
+  pintarLoginGrilla();
+  var priv=usuarioDelLink()||privadoGuardado();
   if(priv){
-    S.loginNombre=priv;
+    S.loginNombre=priv;S.manual=false;
+    document.getElementById('fUsuario').style.display='none';
     document.getElementById('holaVos').textContent='Hola, '+priv;
     document.getElementById('loginErr').textContent='';
     paso(2);
@@ -814,6 +827,25 @@ function pintarLogin(){
 function usuarioDelLink(){
   var m=/[?&]u=([^&]+)/.exec(location.search);
   return m?decodeURIComponent(m[1]).trim().toUpperCase():'';
+}
+/* El ultimo usuario que entro por link privado o a mano queda recordado en
+   este aparato: la app instalada abre sin el ?u= y si no, no habria forma
+   de entrar con un usuario que no figura en la lista. */
+function privadoGuardado(){
+  try{ return localStorage.getItem('shaka_privado')||''; }catch(e){ return ''; }
+}
+function guardarPrivado(n){
+  try{ localStorage.setItem('shaka_privado',n); }catch(e){}
+}
+function entradaManual(nombre){
+  S.manual=true;
+  var i=document.getElementById('fUsuario');
+  i.style.display='block';
+  i.value=nombre||'';
+  document.getElementById('holaVos').textContent='Entrar';
+  document.getElementById('loginErr').textContent='';
+  paso(2);
+  setTimeout(function(){ (nombre?document.getElementById('fClave'):i).focus(); },150);
 }
 function paso(n){
   document.getElementById('paso1').style.display=n===1?'flex':'none';
@@ -1157,6 +1189,8 @@ function entrar(nombre,clave){
     btn.disabled=false;btn.textContent='Entrar';
     if(!r.ok){err.textContent=r.error||'No pudimos entrar.';return;}
     S.me=r.nombre;S.token=r.token;S.nolog=!!r.nolog;S.oculto=!!r.oculto;
+    /* si no aparece en la lista de gente, este aparato se lo recuerda */
+    guardarPrivado(r.oculto?r.nombre:'');
     if(r.gente&&r.gente.length)S.team=r.gente;
     fusionar(r.tareas);
     NET.ok=true;NET.ultima=ahora();save();
@@ -1361,15 +1395,35 @@ document.addEventListener('click',function(e){
   if(DR.movio||DR.activo){e.preventDefault();e.stopPropagation();return;}
 
   if((el=e.target.closest('[data-login]'))){
+    S.manual=false;
+    document.getElementById('fUsuario').style.display='none';
     S.loginNombre=el.dataset.login;
     document.getElementById('holaVos').textContent='Hola, '+S.loginNombre;
     document.getElementById('loginErr').textContent='';
     paso(2);setTimeout(function(){document.getElementById('fClave').focus();},120);
     return;
   }
-  if(e.target.closest('#otroUsr')){document.getElementById('fClave').value='';paso(1);return;}
+  if(e.target.closest('#otroUsr')){
+    document.getElementById('fClave').value='';
+    document.getElementById('fUsuario').style.display='none';
+    S.manual=false;guardarPrivado('');
+    pintarLoginGrilla();paso(1);return;
+  }
+  /* cinco toques en el logo abren la entrada a mano, para los usuarios
+     que no figuran en la lista (o si se perdio el link privado) */
+  if(e.target.closest('#logoLogin')){
+    var t=ahora();
+    if(t-(S.logoT||0)>2500)S.logoN=0;
+    S.logoT=t;S.logoN=(S.logoN||0)+1;
+    if(S.logoN>=5){S.logoN=0;entradaManual('');}
+    return;
+  }
   if(e.target.closest('#btnEntrar')){
-    entrar(S.loginNombre,document.getElementById('fClave').value.trim());return;
+    var quien=S.manual
+      ? document.getElementById('fUsuario').value.trim().toUpperCase()
+      : S.loginNombre;
+    if(!quien){document.getElementById('fUsuario').focus();return;}
+    entrar(quien,document.getElementById('fClave').value.trim());return;
   }
   if(e.target.closest('#dSalir')){if(confirm('¿Salir de tu usuario?'))salir();return;}
   if(e.target.closest('#dRefrescar')){bajar();return;}
@@ -1482,6 +1536,7 @@ document.addEventListener('keydown',function(e){
     cerrarFilas(null);
   }
   if(e.key==='Enter'&&e.target.id==='fClave')document.getElementById('btnEntrar').click();
+  if(e.key==='Enter'&&e.target.id==='fUsuario')document.getElementById('fClave').focus();
 });
 
 /* ===================== arranque ===================== */
