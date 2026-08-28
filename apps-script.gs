@@ -35,18 +35,25 @@ function preparar(){
 
   var u = ss.getSheetByName(HOJA_U) || ss.insertSheet(HOJA_U);
   if (u.getLastRow() < 1 || !u.getRange(1,1).getValue()) {
-    u.getRange(1,1,1,4).setValues([['nombre','clave','activo','nolog']]);
+    u.getRange(1,1,1,5).setValues([['nombre','clave','activo','nolog','oculto']]);
     var gente = ['FEDE','AXEL','MATE','MILI','TOMI','MARTU'];
-    var filas = gente.map(function(n){ return [n, '', 'si', '']; });
-    u.getRange(2,1,filas.length,4).setValues(filas);
-    u.getRange(1,1,1,4).setFontWeight('bold');
+    var filas = gente.map(function(n){ return [n, '', 'si', '', '']; });
+    u.getRange(2,1,filas.length,5).setValues(filas);
+    u.getRange(1,1,1,5).setFontWeight('bold');
     u.setFrozenRows(1);
-    u.setColumnWidth(1,140); u.setColumnWidth(2,160); u.setColumnWidth(3,80); u.setColumnWidth(4,80);
+    u.setColumnWidth(1,140); u.setColumnWidth(2,160);
+    u.setColumnWidth(3,80); u.setColumnWidth(4,80); u.setColumnWidth(5,80);
   }
-  // columna "nolog": poner "si" en tu fila para no aparecer en el registro de accesos
+  // "nolog" = si  -> no queda registro de tus accesos
   if (String(u.getRange(1,4).getValue()).trim().toLowerCase() !== 'nolog') {
     u.getRange(1,4).setValue('nolog').setFontWeight('bold');
     u.setColumnWidth(4,80);
+  }
+  // "oculto" = si -> podés entrar y ver todo, pero no figurás para el resto:
+  // no aparecés en la pantalla de entrada, ni en el equipo, ni te pueden asignar tareas
+  if (String(u.getRange(1,5).getValue()).trim().toLowerCase() !== 'oculto') {
+    u.getRange(1,5).setValue('oculto').setFontWeight('bold');
+    u.setColumnWidth(5,80);
   }
 
   var a = ss.getSheetByName(HOJA_A) || ss.insertSheet(HOJA_A);
@@ -80,14 +87,21 @@ function hojaT_(){ return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(H
 function usuarios_(){
   var h = hojaU_(), n = h.getLastRow() - 1;
   if (n < 1) return [];
-  return h.getRange(2,1,n,4).getValues()
+  return h.getRange(2,1,n,5).getValues()
     .filter(function(f){ return String(f[0]).trim(); })
     .map(function(f){
       return { nombre: String(f[0]).trim().toUpperCase(),
                clave:  String(f[1]).trim(),
                activo: String(f[2]).trim().toLowerCase() !== 'no',
-               nolog:  String(f[3]).trim().toLowerCase() === 'si' };
+               nolog:  String(f[3]).trim().toLowerCase() === 'si',
+               oculto: String(f[4]).trim().toLowerCase() === 'si' };
     });
+
+/** La gente que ve el equipo: los ocultos no figuran. */
+function visibles_(){
+  return usuarios_().filter(function(u){ return u.activo && !u.oculto; })
+                    .map(function(u){ return u.nombre; });
+}
 }
 
 /** Devuelve el usuario si el token es válido, o null. */
@@ -188,8 +202,7 @@ function guardar_(cambios){
 /* ============ puerta de entrada ============ */
 function doGet(e){
   // sirve para probar desde el navegador que la implementación está viva
-  return ok_({ vivo:true, usuarios: usuarios_().filter(function(u){return u.activo;})
-                                               .map(function(u){return u.nombre;}) });
+  return ok_({ vivo:true, usuarios: visibles_() });
 }
 
 function doPost(e){
@@ -198,8 +211,7 @@ function doPost(e){
     var accion = p.accion;
 
     if (accion === 'gente') {
-      return ok_({ gente: usuarios_().filter(function(u){return u.activo;})
-                                     .map(function(u){return u.nombre;}) });
+      return ok_({ gente: visibles_() });
     }
 
     if (accion === 'login') {
@@ -210,9 +222,9 @@ function doPost(e){
         if (us[i].nombre === nombre && us[i].activo) {
           if (!us[i].clave) return error_('Ese usuario todavía no tiene clave cargada. Avisale a Fede.');
           if (us[i].clave !== clave) return error_('Clave incorrecta.');
-          return ok_({ nombre: nombre, token: token_(nombre, clave), nolog: us[i].nolog,
-                       gente: us.filter(function(u){return u.activo;}).map(function(u){return u.nombre;}),
-                       tareas: leerTareas_() });
+          return ok_({ nombre: nombre, token: token_(nombre, clave),
+                       nolog: us[i].nolog, oculto: us[i].oculto,
+                       gente: visibles_(), tareas: leerTareas_() });
         }
       }
       return error_('No encontré ese usuario.');
@@ -232,8 +244,7 @@ function doPost(e){
     }
 
     if (accion === 'pull') {
-      return ok_({ tareas: leerTareas_(),
-                   gente: usuarios_().filter(function(u){return u.activo;}).map(function(u){return u.nombre;}) });
+      return ok_({ tareas: leerTareas_(), gente: visibles_() });
     }
 
     if (accion === 'push') {
