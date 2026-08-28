@@ -96,12 +96,12 @@ function usuarios_(){
                nolog:  String(f[3]).trim().toLowerCase() === 'si',
                oculto: String(f[4]).trim().toLowerCase() === 'si' };
     });
+}
 
 /** La gente que ve el equipo: los ocultos no figuran. */
 function visibles_(){
   return usuarios_().filter(function(u){ return u.activo && !u.oculto; })
                     .map(function(u){ return u.nombre; });
-}
 }
 
 /** Devuelve el usuario si el token es válido, o null. */
