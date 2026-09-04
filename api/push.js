@@ -12,12 +12,29 @@
 
 const webpush = require('web-push');
 
+// La clave publica que usa la app. Sirve para avisar si en Vercel quedo
+// cargada otra distinta, que es el error mas facil de cometer y el mas
+// dificil de descubrir: los avisos simplemente no llegan.
+const PUBLICA_ESPERADA =
+  'BHQ2-CI9CDB8eMJhnJt5LNohX0-dbPdc8rZVukKSP0Ozy6skyHoAaU-mOraCrSmvrsHhJI-rdKw7_TikScMujFg';
+
 module.exports = async (req, res) => {
+  const { VAPID_PUBLIC, VAPID_PRIVATE, PUSH_SECRET } = process.env;
+
+  // Chequeo de configuracion. No devuelve ningun valor, solo si esta bien.
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      ok: true,
+      publica:  VAPID_PUBLIC  ? (VAPID_PUBLIC.trim() === PUBLICA_ESPERADA ? 'ok' : 'NO COINCIDE con la de la app') : 'falta',
+      privada:  VAPID_PRIVATE ? (VAPID_PRIVATE.trim().length === 43 ? 'ok' : 'largo raro: ' + VAPID_PRIVATE.trim().length + ' (deberian ser 43)') : 'falta',
+      secreto:  PUSH_SECRET   ? 'ok' : 'falta'
+    });
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Solo POST' });
   }
 
-  const { VAPID_PUBLIC, VAPID_PRIVATE, PUSH_SECRET } = process.env;
   if (!VAPID_PUBLIC || !VAPID_PRIVATE || !PUSH_SECRET) {
     return res.status(500).json({ ok: false, error: 'Faltan las claves en Vercel' });
   }
