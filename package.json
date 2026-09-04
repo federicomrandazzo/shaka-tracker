@@ -1,0 +1,9 @@
+{
+  "name": "shaka-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tareas del equipo de Shaka",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

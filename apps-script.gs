@@ -22,9 +22,17 @@
 
 var SECRETO = 'cambiar-esto-por-una-frase-larga-inventada';
 
+// ---- avisos (notificaciones) ----
+// PUSH_URL: la direccion de la app + /api/push
+// PUSH_SECRET: la misma frase que cargues en Vercel como PUSH_SECRET
+// Si dejas PUSH_SECRET vacio, los avisos quedan apagados y todo lo demas sigue igual.
+var PUSH_URL    = 'https://shaka-tracker.vercel.app/api/push';
+var PUSH_SECRET = '';
+
 var HOJA_U = 'usuarios';
 var HOJA_T = 'tareas';
 var HOJA_A = 'accesos';
+var HOJA_P = 'avisos';
 
 var COLS = ['id','titulo','desc','quien','dia','vence','hecha','hechaEl',
             'corrida','drop','orden','borrada','actualizada'];
@@ -64,6 +72,14 @@ function preparar(){
     a.setColumnWidth(1,150); a.setColumnWidth(2,110); a.setColumnWidth(3,220); a.setColumnWidth(4,120);
   }
 
+  var s = ss.getSheetByName(HOJA_P) || ss.insertSheet(HOJA_P);
+  if (s.getLastRow() < 1 || !s.getRange(1,1).getValue()) {
+    s.getRange(1,1,1,6).setValues([['persona','endpoint','p256dh','auth','aparato','fecha']]);
+    s.getRange(1,1,1,6).setFontWeight('bold');
+    s.setFrozenRows(1);
+    s.setColumnWidth(1,110); s.setColumnWidth(2,260); s.setColumnWidth(5,120); s.setColumnWidth(6,150);
+  }
+
   var t = ss.getSheetByName(HOJA_T) || ss.insertSheet(HOJA_T);
   if (t.getLastRow() < 1 || !t.getRange(1,1).getValue()) {
     t.getRange(1,1,1,COLS.length).setValues([COLS]);
@@ -75,7 +91,7 @@ function preparar(){
   t.getRange(1, 5, t.getMaxRows(), 1).setNumberFormat('@');
   t.getRange(1, 6, t.getMaxRows(), 1).setNumberFormat('@');
   t.getRange(1, 8, t.getMaxRows(), 1).setNumberFormat('@');
-  return 'Listo: hojas "usuarios", "tareas" y "accesos" preparadas.';
+  return 'Listo: hojas "usuarios", "tareas", "accesos" y "avisos" preparadas.';
 }
 
 /* ============ utilidades ============ */
@@ -96,6 +112,7 @@ function fecha_(v){
 
 function hojaU_(){ return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_U); }
 function hojaA_(){ return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_A); }
+function hojaP_(){ return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_P); }
 function hojaT_(){ return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_T); }
 
 function usuarios_(){
@@ -179,9 +196,10 @@ function filaDe_(t){
  * Gana el cambio más nuevo (comparando "actualizada"), así dos personas
  * editando a la vez no se pisan lo que hizo la otra.
  */
-function guardar_(cambios){
+function guardar_(cambios, quien){
   var lock = LockService.getScriptLock();
   lock.waitLock(25000);
+  var avisos = [];   // [{personas:[...], titulo, cuerpo}]
   try {
     var h = hojaT_(), n = h.getLastRow() - 1;
     var vals = n > 0 ? h.getRange(2,1,n,COLS.length).getValues() : [];
@@ -195,22 +213,107 @@ function guardar_(cambios){
       var t = cambios[k];
       if (!t || !t.id) continue;
       var r = fila[t.id];
+      var antes = r ? String(vals[r-2][3]) : '';
       if (r) {
         var actual = Number(vals[r-2][12]) || 0;
         if ((Number(t.actualizada)||0) >= actual) {
           h.getRange(r,1,1,COLS.length).setValues([filaDe_(t)]);
+        } else {
+          continue;   // gano el otro cambio, no avisamos por este
         }
       } else {
         nuevas.push(filaDe_(t));
+      }
+      // a quien le tocaron una tarea que antes no tenia (y que no sea uno mismo)
+      if (!t.borrada) {
+        var ahora = (t.who || []).map(function(x){ return String(x).trim().toUpperCase(); });
+        var previos = antes ? antes.split('|').map(function(x){ return x.trim().toUpperCase(); }) : [];
+        var nuevos = ahora.filter(function(x){
+          return x && x !== quien && previos.indexOf(x) < 0;
+        });
+        if (nuevos.length) {
+          avisos.push({ personas: nuevos,
+                        titulo: quien + ' te asignó una tarea',
+                        cuerpo: String(t.title || '').slice(0, 90) });
+        }
       }
     }
     if (nuevas.length) {
       h.getRange(h.getLastRow()+1, 1, nuevas.length, COLS.length).setValues(nuevas);
     }
-    return leerTareas_();
+    var salida = leerTareas_();
+    lock.releaseLock(); lock = null;
+    avisos.forEach(function(a){ avisar_(a.personas, a.titulo, a.cuerpo); });
+    return salida;
   } finally {
-    lock.releaseLock();
+    if (lock) lock.releaseLock();
   }
+}
+
+/* ============ avisos ============ */
+
+/** Guarda (o actualiza) la suscripcion de un telefono. */
+function suscribir_(persona, sub){
+  var h = hojaP_();
+  if (!h || !sub || !sub.endpoint) return false;
+  var n = h.getLastRow() - 1;
+  var vals = n > 0 ? h.getRange(2,1,n,6).getValues() : [];
+  for (var i=0;i<vals.length;i++){
+    if (String(vals[i][1]) === sub.endpoint) {          // ya estaba: la actualizamos
+      h.getRange(i+2,1,1,6).setValues([[persona, sub.endpoint, sub.p256dh, sub.auth,
+                                        sub.aparato||'', new Date()]]);
+      return true;
+    }
+  }
+  h.appendRow([persona, sub.endpoint, sub.p256dh, sub.auth, sub.aparato||'', new Date()]);
+  return true;
+}
+
+/** Las suscripciones de una persona (un mismo usuario puede tener varios telefonos). */
+function subsDe_(persona){
+  var h = hojaP_();
+  if (!h) return [];
+  var n = h.getLastRow() - 1;
+  if (n < 1) return [];
+  return h.getRange(2,1,n,4).getValues()
+    .filter(function(f){ return String(f[0]).trim().toUpperCase() === persona && String(f[1]).trim(); })
+    .map(function(f){ return { endpoint:String(f[1]), p256dh:String(f[2]), auth:String(f[3]) }; });
+}
+
+/** Borra las suscripciones que el navegador ya dio de baja. */
+function limpiarSubs_(endpoints){
+  if (!endpoints || !endpoints.length) return;
+  var h = hojaP_(); if (!h) return;
+  var n = h.getLastRow() - 1; if (n < 1) return;
+  var vals = h.getRange(2,1,n,1).getValues();
+  var endpointsCol = h.getRange(2,2,n,1).getValues();
+  for (var i = endpointsCol.length - 1; i >= 0; i--){
+    if (endpoints.indexOf(String(endpointsCol[i][0])) >= 0) h.deleteRow(i+2);
+  }
+}
+
+/** Le pide a Vercel que mande el aviso. Nunca corta el flujo si falla. */
+function avisar_(personas, titulo, cuerpo){
+  if (!PUSH_SECRET || !PUSH_URL) return;
+  try {
+    var subs = [], vistos = {};
+    personas.forEach(function(p){
+      subsDe_(String(p).trim().toUpperCase()).forEach(function(s){
+        if (!vistos[s.endpoint]) { vistos[s.endpoint] = 1; subs.push(s); }
+      });
+    });
+    if (!subs.length) return;
+    var r = UrlFetchApp.fetch(PUSH_URL, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ secreto: PUSH_SECRET, subs: subs,
+                                title: titulo, body: cuerpo,
+                                url: 'https://shaka-tracker.vercel.app/' }),
+      muteHttpExceptions: true
+    });
+    var res = JSON.parse(r.getContentText() || '{}');
+    if (res && res.vencidas && res.vencidas.length) limpiarSubs_(res.vencidas);
+  } catch (err) { /* si el aviso falla, la tarea igual se guardo */ }
 }
 
 /* ============ puerta de entrada ============ */
@@ -262,8 +365,17 @@ function doPost(e){
     }
 
     if (accion === 'push') {
-      var tareas = guardar_(p.cambios || []);
+      var tareas = guardar_(p.cambios || [], quien.nombre);
       return ok_({ tareas: tareas });
+    }
+
+    if (accion === 'suscribir') {
+      return ok_({ guardada: suscribir_(quien.nombre, p.sub || {}) });
+    }
+
+    if (accion === 'probar') {   // para probar los avisos desde la app
+      avisar_([quien.nombre], 'Shaka · Tareas', 'Los avisos están andando.');
+      return ok_({});
     }
 
     return error_('No entendí qué hacer: ' + accion);

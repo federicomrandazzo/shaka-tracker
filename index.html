@@ -499,6 +499,7 @@ a.dlink{text-decoration:none;color:inherit}
     <div id="dTeam" class="eqbox"></div>
     <!-- La guía de instalación vive en /instalar, se pasa por link.
          No va en el menú: se usa una sola vez y después estorba. -->
+    <button class="dlink" id="dAvisos"><span class="ic">◉</span> <span id="dAvisosTxt">Avisos</span></button>
     <div class="estado" id="dEstado"></div>
     <button class="dlink" id="dSalir"><span class="ic">⏻</span> Salir</button>
   </div>
@@ -581,19 +582,19 @@ var DEF_STAGES=[
   {name:'LANZAMIENTO',before:0,dur:1,who:''}
 ];
 var API='https://script.google.com/macros/s/AKfycbyAb0qkq-WBLvZAn_Mjgociomgpb5FcjoY3aPgxuQkARHXViNt7TeF1el0eflIU0dQk/exec';
-var S={team:DEF_TEAM.slice(),tasks:[],me:null,token:null,nolog:false,oculto:false,view:'hoy',tip:true,
+var S={team:DEF_TEAM.slice(),tasks:[],me:null,token:null,nolog:false,oculto:false,avisos:false,view:'hoy',tip:true,
        fWhos:[],fTask:null,stages:null,collapsed:{},viendo:null,sheetResp:false,manual:false,
        fltDrop:'',fltEst:'pend',actId:null,detId:null,eqOpen:false};
 
 function save(){try{localStorage.setItem(KEY,JSON.stringify(
-  {team:S.team,tasks:S.tasks,me:S.me,token:S.token,nolog:S.nolog,oculto:S.oculto,tip:S.tip,pend:Object.keys(NET.pend)}));}catch(e){}}
+  {team:S.team,tasks:S.tasks,me:S.me,token:S.token,nolog:S.nolog,oculto:S.oculto,avisos:S.avisos,tip:S.tip,pend:Object.keys(NET.pend)}));}catch(e){}}
 function load(){
   try{
     var d=JSON.parse(localStorage.getItem(KEY)||'null');
     if(d){
       S.team=(d.team&&d.team.length)?d.team:DEF_TEAM.slice();
       S.tasks=d.tasks||[];S.me=d.me||null;S.token=d.token||null;
-      S.nolog=!!d.nolog;S.oculto=!!d.oculto;S.tip=d.tip!==false;
+      S.nolog=!!d.nolog;S.oculto=!!d.oculto;S.avisos=!!d.avisos;S.tip=d.tip!==false;
       (d.pend||[]).forEach(function(id){NET.pend[id]=true;}); /* lo que quedó sin subir */
       return true;
     }
@@ -810,7 +811,7 @@ function render(){
     (S.view==='hoy'?vistaHoy():vistaTodas())+
     '<div class="foot">SHAKA CMMNTY® · TAREAS · VERSIÓN DE PRUEBA</div>';
   document.getElementById('dropList').innerHTML=drops().map(function(d){return'<option value="'+esc(d)+'">';}).join('');
-  pintarDrawer();pintarEstado();
+  pintarDrawer();pintarEstado();pintarAvisos();
 }
 function pintarLoginGrilla(){
   document.getElementById('whoGrid').innerHTML=S.team.map(function(m){
@@ -1204,6 +1205,100 @@ function anotarSalida(){
 }
 window.addEventListener('pagehide',anotarSalida);
 
+/* ===================== avisos (notificaciones) =====================
+   Web Push: el telefono se suscribe, la suscripcion se guarda en la planilla
+   y cuando alguien te asigna algo, Google le pide a Vercel que te avise.
+   En iPhone solo funciona con la app agregada a la pantalla de inicio. */
+var VAPID='BHQ2-CI9CDB8eMJhnJt5LNohX0-dbPdc8rZVukKSP0Ozy6skyHoAaU-mOraCrSmvrsHhJI-rdKw7_TikScMujFg';
+
+function esIOS(){
+  var u=navigator.userAgent;
+  return /iPhone|iPad|iPod/i.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1);
+}
+function instalada(){
+  return (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)
+         || window.navigator.standalone===true;
+}
+function hayPush(){
+  return ('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
+}
+function b64aBytes(b64){
+  var pad='='.repeat((4-b64.length%4)%4);
+  var raw=atob((b64+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  var out=new Uint8Array(raw.length);
+  for(var i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);
+  return out;
+}
+function bytesAb64(buf){
+  var b=new Uint8Array(buf),s='';
+  for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function registrarSW(){
+  if(!('serviceWorker' in navigator))return Promise.reject('sin soporte');
+  return navigator.serviceWorker.register('sw.js');
+}
+function estadoAvisos(){
+  if(!hayPush())return 'no-soporta';
+  if(esIOS()&&!instalada())return 'falta-instalar';
+  if(Notification.permission==='denied')return 'bloqueado';
+  return S.avisos?'activos':'apagados';
+}
+function pintarAvisos(){
+  var t=document.getElementById('dAvisosTxt');
+  if(!t)return;
+  var e=estadoAvisos();
+  t.textContent = e==='activos'?'Avisos activados'
+                : e==='falta-instalar'?'Avisos (instalá la app)'
+                : e==='bloqueado'?'Avisos bloqueados'
+                : e==='no-soporta'?'Avisos no disponibles'
+                : 'Activar avisos';
+  document.getElementById('dAvisos').style.opacity=(e==='activos')?'.6':'1';
+}
+function activarAvisos(){
+  var e=estadoAvisos();
+  if(e==='activos'){ alert('Ya los tenés activados en este teléfono.'); return; }
+  if(e==='no-soporta'){ alert('Este navegador no permite avisos. Probá desde Safari o Chrome.'); return; }
+  if(e==='falta-instalar'){
+    alert('En iPhone los avisos solo funcionan con la app agregada a la pantalla de inicio.\n\nTocá Compartir y elegí "Agregar a inicio", después entrá desde ahí y volvé a intentar.');
+    return;
+  }
+  if(e==='bloqueado'){
+    alert('Los avisos están bloqueados para esta app. Hay que permitirlos desde los ajustes del teléfono y volver a intentar.');
+    return;
+  }
+  registrarSW().then(function(reg){
+    return Notification.requestPermission().then(function(permiso){
+      if(permiso!=='granted'){ pintarAvisos(); return null; }
+      return reg.pushManager.getSubscription().then(function(sub){
+        return sub || reg.pushManager.subscribe({
+          userVisibleOnly:true,
+          applicationServerKey:b64aBytes(VAPID)
+        });
+      });
+    });
+  }).then(function(sub){
+    if(!sub)return;
+    var j=sub.toJSON?sub.toJSON():null;
+    var datos={
+      endpoint: sub.endpoint,
+      p256dh: j&&j.keys?j.keys.p256dh:bytesAb64(sub.getKey('p256dh')),
+      auth:   j&&j.keys?j.keys.auth  :bytesAb64(sub.getKey('auth')),
+      aparato: aparato()
+    };
+    return api('suscribir',{sub:datos}).then(function(r){
+      if(r&&r.ok){
+        S.avisos=true;save();pintarAvisos();
+        alert('Listo, vas a recibir un aviso cuando te asignen una tarea.');
+      }else{
+        alert('No pudimos guardar la suscripción: '+((r&&r.error)||'error'));
+      }
+    });
+  })['catch'](function(err){
+    alert('No se pudieron activar los avisos: '+err);
+  });
+}
+
 /* ===================== entrar y salir ===================== */
 function entrar(nombre,clave){
   var err=document.getElementById('loginErr'),btn=document.getElementById('btnEntrar');
@@ -1227,7 +1322,7 @@ function entrar(nombre,clave){
 }
 function salir(){
   anotarSalida();
-  S.token=null;S.me=null;S.nolog=false;S.oculto=false;S.viendo=null;S.tasks=[];NET.pend={};
+  S.token=null;S.me=null;S.nolog=false;S.oculto=false;S.avisos=false;S.viendo=null;S.tasks=[];NET.pend={};
   if(NET.poll)clearInterval(NET.poll);
   save();cerrarDrawer();render();
 }
@@ -1448,6 +1543,7 @@ document.addEventListener('click',function(e){
     if(!quien){document.getElementById('fUsuario').focus();return;}
     entrar(quien,document.getElementById('fClave').value.trim());return;
   }
+  if(e.target.closest('#dAvisos')){activarAvisos();return;}
   if(e.target.closest('#dSalir')){if(confirm('¿Salir de tu usuario?'))salir();return;}
   if(e.target.closest('#dRefrescar')){bajar();return;}
 
