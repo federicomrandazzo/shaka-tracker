@@ -316,6 +316,33 @@ function avisar_(personas, titulo, cuerpo){
   } catch (err) { /* si el aviso falla, la tarea igual se guardo */ }
 }
 
+/** Freno anti-spam: la misma tarea (o la misma persona) no puede recibir
+    otro toque de campana hasta pasadas MINUTOS_CAMPANA. Vive en el servidor
+    porque el aviso es anonimo: si estuviera en el telefono, alcanzaria con
+    cambiar de aparato para saltearlo. */
+var MINUTOS_CAMPANA = 180;
+
+function puedeTocar_(clave){
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var k = 'campana_' + clave;
+    var ult = Number(props.getProperty(k) || 0);
+    var ahora = new Date().getTime();
+    if (ahora - ult < MINUTOS_CAMPANA * 60 * 1000) return false;
+    props.setProperty(k, String(ahora));
+    return true;
+  } catch (e) { return true; }   // si falla el freno, mejor avisar que no avisar
+}
+
+/** Deja constancia en la hoja de accesos. El notificado no la ve;
+    sirve para que el duenio del sistema detecte abusos. */
+function anotarCampana_(quien, texto){
+  try {
+    var a = hojaA_();
+    if (a) a.appendRow([ new Date(), quien, String(texto).slice(0,120), 'campana' ]);
+  } catch (e) {}
+}
+
 /* ============ puerta de entrada ============ */
 function doGet(e){
   // sirve para probar desde el navegador que la implementación está viva
@@ -367,6 +394,40 @@ function doPost(e){
     if (accion === 'push') {
       var tareas = guardar_(p.cambios || [], quien.nombre);
       return ok_({ tareas: tareas });
+    }
+
+    // Campanita de una tarea: le recuerda a sus responsables, sin decir quien fue
+    if (accion === 'recordar') {
+      var tareas = leerTareas_(), tarea = null;
+      for (var q = 0; q < tareas.length; q++) {
+        if (tareas[q].id === String(p.id)) { tarea = tareas[q]; break; }
+      }
+      if (!tarea || tarea.borrada) return error_('No encontré esa tarea.');
+      var destinos = (tarea.who || []).filter(function(n){
+        return String(n).toUpperCase() !== quien.nombre;
+      });
+      if (!destinos.length) return ok_({ enviado:false, motivo:'sin-destinatarios' });
+      if (!puedeTocar_('t' + tarea.id)) return ok_({ enviado:false, motivo:'muy-seguido' });
+      avisar_(destinos, 'Recordá', tarea.title || 'Tenés una tarea');
+      anotarCampana_(quien.nombre, 'recordó "' + (tarea.title||'') + '" a ' + destinos.join(', '));
+      return ok_({ enviado:true, a:destinos.length });
+    }
+
+    // Campanita de una persona: le avisa que tiene tareas esperando
+    if (accion === 'empujar') {
+      var persona = String(p.persona || '').trim().toUpperCase();
+      if (!persona || persona === quien.nombre) return ok_({ enviado:false, motivo:'sos-vos' });
+      var pend = leerTareas_().filter(function(t){
+        return !t.borrada && !t.done &&
+               (t.who || []).some(function(n){ return String(n).toUpperCase() === persona; });
+      }).length;
+      if (!pend) return ok_({ enviado:false, motivo:'sin-pendientes' });
+      if (!puedeTocar_('p' + persona)) return ok_({ enviado:false, motivo:'muy-seguido' });
+      avisar_([persona], 'Tenés tareas pendientes',
+              pend === 1 ? 'Hay una esperándote en la app'
+                         : 'Tenés ' + pend + ' tareas pendientes en la app');
+      anotarCampana_(quien.nombre, 'le tocó la campana a ' + persona + ' (' + pend + ' pendientes)');
+      return ok_({ enviado:true, pendientes:pend });
     }
 
     if (accion === 'suscribir') {

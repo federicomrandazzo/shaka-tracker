@@ -229,10 +229,30 @@ body.dragging .t:not(.grab){transition:transform .16s}
 .tag.late{background:var(--alert);color:#fff;font-weight:700}
 .tag.soon{background:var(--warn-dim);color:var(--warn);font-weight:700}
 .tag.push{background:transparent;border:1px solid var(--border);color:var(--muted)}
-.grip{
-  flex:0 0 auto;align-self:center;width:22px;height:34px;margin-right:-6px;
-  display:flex;align-items:center;justify-content:center;color:#cfcfcf;font-size:13px;letter-spacing:-1px;
+/* campanita: recuerda la tarea a los demas responsables, sin decir quien fue */
+.camp{
+  flex:0 0 auto;align-self:center;width:40px;height:40px;margin:-3px -8px -3px 0;
+  display:flex;align-items:center;justify-content:center;color:#c9c9c9;
 }
+.camp svg{width:17px;height:17px}
+.camp:active{color:var(--accent)}
+.camp.sola{color:#e8e8e8}
+.camp.listo{color:var(--accent)}
+@keyframes tilin{
+  0%,100%{transform:rotate(0)} 20%{transform:rotate(-16deg)} 40%{transform:rotate(13deg)}
+  60%{transform:rotate(-9deg)} 80%{transform:rotate(5deg)}
+}
+.camp.suena svg{animation:tilin .55s ease-in-out}
+/* aviso breve al pie */
+#toast{
+  position:fixed;left:50%;transform:translateX(-50%) translateY(140%);
+  bottom:calc(84px + var(--safe-b));z-index:95;
+  max-width:88%;background:var(--text);color:#fff;border-radius:999px;
+  padding:12px 18px;font-size:12.5px;line-height:1.35;text-align:center;
+  box-shadow:0 6px 22px rgba(10,10,10,.25);opacity:0;
+  transition:transform .25s cubic-bezier(.22,.61,.36,1),opacity .25s;pointer-events:none;
+}
+#toast.on{transform:translateX(-50%) translateY(0);opacity:1}
 .empty{padding:26px 12px;text-align:center;color:var(--muted);font-size:12px;line-height:1.6}
 
 
@@ -306,7 +326,16 @@ a.dlink{text-decoration:none;color:inherit}
 .pcard .nm small{display:block;font-size:10px;font-weight:400;letter-spacing:.3px;text-transform:none;color:var(--muted);margin-top:2px}
 .pcard .pill{flex:0 0 auto;border-radius:2px;padding:3px 7px;font-size:10px;font-weight:700;background:var(--bg);border:1px solid var(--border);color:var(--muted)}
 .pcard .pill.bad{background:var(--alert);border-color:var(--alert);color:#fff}
+.pcard{display:flex;align-items:stretch}
+.pcard>button[data-p]{flex:1;min-width:0}
 .pcard .ir{flex:0 0 auto;color:var(--muted);font-size:16px;margin-left:2px}
+.pcard .campp{
+  flex:0 0 auto;width:48px;display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border-left:1px solid var(--border);color:#b6b6b6;
+}
+.pcard .campp svg{width:18px;height:18px}
+.pcard .campp:active{color:var(--accent)}
+.pcard .campp.suena svg{animation:tilin .55s ease-in-out}
 .mirando{
   display:flex;align-items:center;gap:10px;margin-top:14px;
   background:var(--accent-dim);border:1px solid rgba(57,147,187,.28);border-radius:var(--r);
@@ -483,6 +512,7 @@ a.dlink{text-decoration:none;color:inherit}
 </button>
 
 <!-- ============ PANEL LATERAL ============ -->
+<div id="toast"></div>
 <div id="scrim"></div>
 <aside id="drawer">
   <div class="dhead">
@@ -684,6 +714,12 @@ function tagDeadline(t){
   if(n<=3)return'<span class="tag soon">Vence en '+n+' días</span>';
   return'<span class="tag">Vence '+fmtCorto(t.due)+'</span>';
 }
+function svgCampana(){
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '+
+         'stroke-linecap="round" stroke-linejoin="round">'+
+         '<path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>'+
+         '<path d="M13.7 21a2 2 0 01-3.4 0"/></svg>';
+}
 function htmlTarea(t){
   var m=tagDeadline(t);
   if(miraTodo()){
@@ -708,7 +744,9 @@ function htmlTarea(t){
         (t.desc?'<div class="desc">'+esc(t.desc)+'</div>':'')+
         '<div class="meta">'+m+'</div>'+
       '</div>'+
-      '<div class="grip">‹‹</div>'+
+      (t.done?'<span class="camp sola" aria-hidden="true"></span>'   /* ya está hecha: nada que recordar */
+             :'<button class="camp'+(whos(t).filter(function(n){return n!==S.me;}).length?'':' sola')+
+               '" data-act="campana" aria-label="Recordar">'+svgCampana()+'</button>')+
     '</div></div>';
 }
 /* pendientes primero; lo tachado se va al fondo y queda tachado.
@@ -897,7 +935,9 @@ function pintarDrawer(){
       '<span class="nm">'+esc(nom)+(n===S.me&&!S.oculto?' · vos':'')+
         '<small>'+(pend?pend+' pendiente'+(pend>1?'s':''):'Sin pendientes')+(hoy?' · '+hoy+' hoy':'')+'</small></span>'+
       (venc?'<span class="pill bad">'+venc+'</span>':'<span class="pill">'+pend+'</span>')+
-      '<span class="ir">›</span></button></div>';
+      '<span class="ir">›</span></button>'+
+      ((n&&n!==S.me&&pend)?'<button class="campp" data-campana="'+esc(n)+'" aria-label="Avisarle">'+svgCampana()+'</button>':'')+
+      '</div>';
   }).join('');
 }
 function abrirDrawer(){
@@ -1205,6 +1245,56 @@ function anotarSalida(){
 }
 window.addEventListener('pagehide',anotarSalida);
 
+/* ===================== aviso breve en pantalla ===================== */
+var TOAST=null;
+function decir(txt){
+  var el=document.getElementById('toast');
+  if(!el)return;
+  el.textContent=txt;
+  el.classList.add('on');
+  if(TOAST)clearTimeout(TOAST);
+  TOAST=setTimeout(function(){el.classList.remove('on');},2800);
+}
+
+/* ===================== campanitas =====================
+   Tocar la campana de una tarea le recuerda a los demas responsables.
+   Tocar la de una persona le avisa que tiene pendientes.
+   En los dos casos el que recibe NO sabe quien la toco; y el servidor no
+   deja repetir el mismo aviso hasta pasadas 3 horas. */
+function sonar(el){
+  if(!el)return;
+  el.classList.add('suena');
+  setTimeout(function(){el.classList.remove('suena');},600);
+}
+function recordarTarea(id,el){
+  var t=find(id);
+  if(!t)return;
+  var otros=whos(t).filter(function(n){return n!==S.me;});
+  if(!otros.length){ decir('Esta tarea es solo tuya, no hay a quién avisarle.'); return; }
+  sonar(el);
+  api('recordar',{id:id}).then(function(r){
+    if(!r||!r.ok){ decir((r&&r.error)||'No se pudo enviar el aviso.'); return; }
+    if(r.enviado){
+      if(el)el.classList.add('listo');
+      decir(otros.length===1?('Le avisamos a '+otros[0]):('Les avisamos a '+otros.join(' y ')));
+    }else if(r.motivo==='muy-seguido'){
+      decir('Ya le avisaron hace un rato. Podés volver a insistir en unas horas.');
+    }else{
+      decir('No había a quién avisarle.');
+    }
+  })['catch'](function(){ decir('Sin conexión: probá de nuevo en un rato.'); });
+}
+function empujarPersona(nombre,el){
+  sonar(el);
+  api('empujar',{persona:nombre}).then(function(r){
+    if(!r||!r.ok){ decir((r&&r.error)||'No se pudo enviar el aviso.'); return; }
+    if(r.enviado)            decir('Listo, le avisamos a '+nombre+'.');
+    else if(r.motivo==='muy-seguido')    decir('A '+nombre+' ya le avisaron hace un rato.');
+    else if(r.motivo==='sin-pendientes') decir(nombre+' no tiene nada pendiente.');
+    else                                 decir('No se envió el aviso.');
+  })['catch'](function(){ decir('Sin conexión: probá de nuevo en un rato.'); });
+}
+
 /* ===================== avisos (notificaciones) =====================
    Web Push: el telefono se suscribe, la suscripcion se guarda en la planilla
    y cuando alguien te asigna algo, Google le pide a Vercel que te avise.
@@ -1339,7 +1429,7 @@ function swStart(x,y,target){
   var face=target.closest?target.closest('.tface'):null;
   if(!face)return;
   var t=face.parentNode;
-  if(target.closest('.chk'))return;
+  if(target.closest('.chk')||target.closest('.camp'))return;   /* botones, no gestos */
   SW.el=t;SW.x0=x;SW.y0=y;SW.dx=0;SW.activo=true;SW.decidido=false;SW.movio=false;
 }
 function swMove(x,y,ev){
@@ -1379,6 +1469,7 @@ function pressStart(x,y,target){
   if(!face)return;
   if(target.closest('.chk'))return;
   var row=face.parentNode;
+  if(target.closest('.chk')||target.closest('.camp'))return;   /* botones, no gestos */
   if(row.classList.contains('open')||filaAbierta())return; /* con acciones a la vista, no */
   DR.y0=y;DR.row=row;
   DR.timer=setTimeout(function(){DR.timer=null;drLevantar(row);},LARGO);
@@ -1571,6 +1662,9 @@ document.addEventListener('click',function(e){
   }
   if(e.target.closest('#dEq')){S.eqOpen=!S.eqOpen;pintarDrawer();return;}
 
+  if((el=e.target.closest('[data-campana]'))){
+    empujarPersona(el.dataset.campana,el);return;
+  }
   if((el=e.target.closest('[data-p]'))){
     S.viendo=el.dataset.p||'';      /* '' = las que no tienen dueño */
     cerrarDrawer();cerrarFilas(null);setNav('todas');render();window.scrollTo(0,0);return;
@@ -1615,6 +1709,7 @@ document.addEventListener('click',function(e){
   var row=e.target.closest('.t[data-id]');
   if(row){
     var act=e.target.closest('[data-act]'),a=act?act.dataset.act:null;
+    if(a==='campana')return recordarTarea(row.dataset.id,act);
     if(a==='pasar')return sheetPasar(row.dataset.id);
     if(a==='resp')return sheetResp(row.dataset.id);
     if(a==='del'){row.classList.remove('open');return borrar(row.dataset.id);}
